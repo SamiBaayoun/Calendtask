@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { mount, unmount } from 'svelte';
-import TodoColumn from './TodoColumn.svelte';
-import CalendarView from './CalendarView.svelte';
+import TodoColumn from './components/TodoColumn.svelte';
+import CalendarView from './components/CalendarView.svelte';
 
 export const VIEW_TYPE_CALENDTASK = 'calendtask-view';
 

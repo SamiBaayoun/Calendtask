@@ -4,3 +4,4 @@ main.js
 *.js.map
 .hotreload
 .claude/settings.local.json
+.dev-notes.md

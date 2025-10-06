@@ -1,17 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-
-  interface CalendarEvent {
-    id: string;
-    text: string;
-    start: Date;
-    end: Date;
-    dayIndex: number; // 0 for Monday, 6 for Sunday
-  }
-
-  let currentWeekStart: Date;
-  let daysInWeek: Date[] = [];
-  let calendarEvents: CalendarEvent[] = [];
+  import AllDayZone from './components/AllDayZone.svelte';
+  import { currentWeekStart, daysInWeek, goToPreviousWeek, goToNextWeek } from './stores/calendarStore';
+  import type { Todo } from './types';
 
   onMount(() => {
     currentWeekStart = getStartOfWeek(new Date());

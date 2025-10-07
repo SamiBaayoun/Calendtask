@@ -74,17 +74,33 @@ export class TodoParser {
   }
 
   /**
-   * Extrait la date et l'heure (@YYYY-MM-DD HH:MM)
+   * Extrait la date et l'heure
+   * Nouveau format Tasks: ⏳ YYYY-MM-DD et ⏰ HH:MM
+   * Ancien format (rétrocompatibilité): @YYYY-MM-DD HH:MM
    */
   extractDateTime(line: string): { date?: string; time?: string } {
-    // Format: @2025-10-06 14:30 ou @2025-10-06
-    const dateTimeRegex = /@(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}))?/;
-    const match = line.match(dateTimeRegex);
+    // Nouveau format Tasks : ⏳2025-10-06 et ⏰14:30
+    const scheduledDateRegex = /⏳(\d{4}-\d{2}-\d{2})/;
+    const timeRegex = /⏰(\d{2}:\d{2})/;
 
-    if (match) {
+    const dateMatch = line.match(scheduledDateRegex);
+    const timeMatch = line.match(timeRegex);
+
+    if (dateMatch) {
       return {
-        date: match[1],
-        time: match[2] || undefined,
+        date: dateMatch[1],
+        time: timeMatch ? timeMatch[1] : undefined,
+      };
+    }
+
+    // Fallback ancien format: @2025-10-06 14:30 ou @2025-10-06
+    const oldDateTimeRegex = /@(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}))?/;
+    const oldMatch = line.match(oldDateTimeRegex);
+
+    if (oldMatch) {
+      return {
+        date: oldMatch[1],
+        time: oldMatch[2] || undefined,
       };
     }
 
@@ -149,7 +165,11 @@ export class TodoParser {
     return text
       // Retirer les tags
       .replace(/#[a-zA-Z0-9_-]+/g, '')
-      // Retirer la date/heure
+      // Retirer la date scheduled (nouveau format)
+      .replace(/⏳\d{4}-\d{2}-\d{2}/g, '')
+      // Retirer l'heure (nouveau format)
+      .replace(/⏰\d{2}:\d{2}/g, '')
+      // Retirer la date/heure (ancien format)
       .replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, '')
       // Retirer la priorité
       .replace(/!(low|medium|high|critical)/gi, '')
@@ -162,6 +182,7 @@ export class TodoParser {
 
   /**
    * Construit une ligne de tâche à partir d'un Todo
+   * Nouveau format Tasks: ⏳ date, ⏰ time
    */
   buildTaskLine(todo: Todo): string {
     const checkbox = {
@@ -172,25 +193,25 @@ export class TodoParser {
     }[todo.status];
 
     const tags = todo.tags.map(t => `#${t}`).join(' ');
-    const dateTime = todo.time
-      ? `@${todo.date} ${todo.time}`
-      : todo.date
-        ? `@${todo.date}`
-        : '';
     const priority = todo.priority ? `!${todo.priority}` : '';
-    const duration = todo.duration
-      ? (todo.duration >= 60
-          ? `⏱${Math.round(todo.duration / 60)}h`
-          : `⏱${todo.duration}min`)
-      : '';
+
+    // Grouper les métadonnées temporelles ensemble (date + time + duration)
+    const temporalParts = [
+      todo.date ? `⏳${todo.date}` : '',
+      todo.time ? `⏰${todo.time}` : '',
+      todo.duration
+        ? (todo.duration >= 60
+            ? `⏱${Math.round(todo.duration / 60)}h`
+            : `⏱${todo.duration}min`)
+        : ''
+    ].filter(p => p).join(' ');
 
     const parts = [
       `- ${checkbox}`,
       todo.text,
       tags,
-      dateTime,
+      temporalParts,
       priority,
-      duration,
     ].filter(p => p);
 
     return parts.join(' ');

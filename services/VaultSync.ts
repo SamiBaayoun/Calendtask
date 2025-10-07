@@ -175,26 +175,39 @@ export class VaultSync {
 
       // Update date
       if ('date' in updates) {
-        // Remove existing date
-        updatedLine = updatedLine.replace(/@\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?/g, '');
+        // Remove existing date (both old @ and new ⏳/⏰ formats)
+        updatedLine = updatedLine.replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, '');
+        updatedLine = updatedLine.replace(/⏳\d{4}-\d{2}-\d{2}/g, '');
+        updatedLine = updatedLine.replace(/⏰\d{2}:\d{2}/g, '');
 
-        // Add new date if provided
+        // Add new date if provided (nouveau format Tasks)
         if (updates.date) {
-          const dateTimeStr = updates.time
-            ? `@${updates.date} ${updates.time}`
-            : `@${updates.date}`;
+          const scheduledDateStr = `⏳${updates.date}`;
+          // Insert before priority or at the end
+          updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*!|⏱|$)/, `$1 ${scheduledDateStr} $2`);
 
-          // Insert before priority or tags or at the end
-          updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*!|\s*#|⏱|$)/, `$1 ${dateTimeStr}$2`);
+          // Determine time to use: update value if specified, otherwise keep existing
+          const timeToUse = updates.time !== undefined ? updates.time : todo.time;
+
+          if (timeToUse) {
+            const timeStr = `⏰${timeToUse}`;
+            // Insert after date
+            updatedLine = updatedLine.replace(/(⏳\d{4}-\d{2}-\d{2})(\s*)/, `$1 ${timeStr}$2`);
+          }
         }
       } else if ('time' in updates) {
         // Update only time (keep existing date)
-        if (todo.date) {
-          const dateTimeStr = updates.time
-            ? `@${todo.date} ${updates.time}`
-            : `@${todo.date}`;
+        updatedLine = updatedLine.replace(/⏰\d{2}:\d{2}/g, '');
 
-          updatedLine = updatedLine.replace(/@\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?/g, dateTimeStr);
+        if (updates.time && todo.date) {
+          // Migrate old date format to new format if needed
+          if (updatedLine.match(/@\d{4}-\d{2}-\d{2}/)) {
+            updatedLine = updatedLine.replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, `⏳${todo.date}`);
+          }
+
+          const timeStr = `⏰${updates.time}`;
+          // Insert after date
+          updatedLine = updatedLine.replace(/(⏳\d{4}-\d{2}-\d{2})/, `$1 ${timeStr}`);
         }
       }
 
@@ -235,6 +248,9 @@ export class VaultSync {
           updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*#|$)/, `$1 !${updates.priority}$2`);
         }
       }
+
+      // Clean up multiple spaces before updating
+      updatedLine = updatedLine.replace(/\s{2,}/g, ' ');
 
       // Update the line
       lines[todo.lineNumber] = updatedLine;

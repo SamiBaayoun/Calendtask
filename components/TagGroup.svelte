@@ -137,7 +137,7 @@
     border-radius: 4px;
     cursor: pointer;
     user-select: none;
-    transition: background-color 0.2s;
+    transition: background-color 0.1s;
   }
 
   .tag-header:hover {
@@ -175,12 +175,10 @@
     border-radius: 4px;
     padding: 8px 10px;
     cursor: grab;
-    transition: box-shadow 0.2s, transform 0.1s;
   }
 
   .todo-item:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-1px);
   }
 
   .todo-item:active {

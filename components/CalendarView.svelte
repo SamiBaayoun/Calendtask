@@ -27,22 +27,59 @@
   let initialTime: string | null = null;
   let resizeHandleType: 'top' | 'bottom' | null = null;
 
-  onMount(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+  // Local state for visual resize feedback (not saved to store until mouseup)
+  let resizeVisualState: { time?: string; duration?: number } | null = null;
 
+  // Pre-compute todos by day+hour for efficient rendering (replaces 175 filters per render)
+  $: todosByDayHour = (() => {
+    const byHour = new Map<string, Todo[]>();
+    const byDay = new Map<string, Todo[]>();
+
+    $todos.forEach(todo => {
+      if (!todo.date) return;
+
+      // All-day todos (no time)
+      if (!todo.time) {
+        const key = todo.date;
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key)!.push(todo);
+        return;
+      }
+
+      // Timed todos
+      const [hours] = todo.time.split(':').map(Number);
+      const key = `${todo.date}-${hours}`;
+      if (!byHour.has(key)) byHour.set(key, []);
+      byHour.get(key)!.push(todo);
+    });
+
+    return { byHour, byDay };
+  })();
+
+  // Pre-compute day metadata to avoid repeated calculations (189 → 7 per render)
+  $: daysMetadata = $daysInWeek.map(day => {
+    const today = new Date();
+    const isToday = day.getDate() === today.getDate() &&
+                    day.getMonth() === today.getMonth() &&
+                    day.getFullYear() === today.getFullYear();
+
+    return {
+      date: day,
+      isToday,
+      weekday: day.toLocaleDateString('fr-FR', { weekday: 'short' }),
+      dayNumber: day.getDate(),
+      timestamp: day.getTime()
+    };
+  });
+
+  onMount(() => {
+    // Cleanup on unmount (mouseup listener is added/removed dynamically)
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   });
 
-  function isToday(date: Date): boolean {
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
-  }
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
@@ -107,6 +144,10 @@
     resizeHandleType = type;
     event.stopPropagation();
     event.preventDefault();
+
+    // Attach listeners only when needed
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
   }
 
   function handleMouseMove(event: MouseEvent) {
@@ -132,9 +173,10 @@
         newDuration = 1439 - startMinutes;
       }
 
-      // Update the todo duration visually (will be saved on mouseup)
-      resizeTodo.duration = newDuration;
-      todos.update(t => [...t]);
+      // Store in local state only (no store update = no re-render)
+      resizeVisualState = { duration: newDuration };
+      // Force Svelte reactivity (trick: self-assignment triggers change detection)
+      resizeVisualState = resizeVisualState;
 
     } else if (resizeHandleType === 'top') {
       // Resize depuis le haut : déplacer l'heure de début ET ajuster la durée
@@ -164,30 +206,29 @@
 
       // Vérifier les limites (0:00 à 23:59)
       if (newHours >= 0 && newHours < 24 && endMinutes <= 1439) {
-        resizeTodo.time = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
-        resizeTodo.duration = newDuration;
-        todos.update(t => [...t]);
+        const newTime = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+        // Store in local state only (no store update = no re-render)
+        resizeVisualState = { time: newTime, duration: newDuration };
+        // Force Svelte reactivity (trick: self-assignment triggers change detection)
+        resizeVisualState = resizeVisualState;
       }
     }
   }
 
   async function handleMouseUp() {
-    if (isResizing && resizeTodo) {
-      const durationChanged = resizeTodo.duration !== initialDuration;
-      const timeChanged = resizeTodo.time !== initialTime;
+    if (isResizing && resizeTodo && resizeVisualState) {
+      // Apply changes from visual state to store and save
+      const updates: Partial<Todo> = {};
 
-      if (durationChanged || timeChanged) {
-        // Save changes to vault
-        const updates: Partial<Todo> = {};
+      if (resizeVisualState.time && resizeVisualState.time !== initialTime) {
+        updates.time = resizeVisualState.time;
+      }
 
-        if (timeChanged && resizeTodo.time) {
-          updates.time = resizeTodo.time;
-        }
+      if (resizeVisualState.duration && resizeVisualState.duration !== initialDuration) {
+        updates.duration = resizeVisualState.duration;
+      }
 
-        if (durationChanged && resizeTodo.duration) {
-          updates.duration = resizeTodo.duration;
-        }
-
+      if (Object.keys(updates).length > 0) {
         await vaultSync.updateTodoInVault(resizeTodo, updates);
       }
     }
@@ -197,6 +238,11 @@
     resizeTodo = null;
     initialTime = null;
     resizeHandleType = null;
+    resizeVisualState = null;
+
+    // Detach listeners when done
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
   }
 
   async function handleEventDoubleClick(todo: Todo) {
@@ -262,22 +308,16 @@
     menu.showAtMouseEvent(event);
   }
 
-  // Filtrer les todos pour la zone all-day de chaque jour
-  function getAllDayTodosForDay(day: Date, allTodos: Todo[]): Todo[] {
+  // Fast lookup functions - take maps as parameter to ensure Svelte reactivity
+  function getAllDayTodosForDay(day: Date, maps: typeof todosByDayHour): Todo[] {
     const dateStr = formatDate(day);
-    return allTodos.filter(todo =>
-      todo.date === dateStr && !todo.time
-    );
+    return maps.byDay.get(dateStr) || [];
   }
 
-  // Filtrer les todos avec heure pour chaque cellule
-  function getTodosForHour(day: Date, hour: number, allTodos: Todo[]): Todo[] {
+  function getTodosForHour(day: Date, hour: number, maps: typeof todosByDayHour): Todo[] {
     const dateStr = formatDate(day);
-    return allTodos.filter(todo => {
-      if (todo.date !== dateStr || !todo.time) return false;
-      const todoHour = parseInt(todo.time.split(':')[0], 10);
-      return todoHour === hour;
-    });
+    const key = `${dateStr}-${hour}`;
+    return maps.byHour.get(key) || [];
   }
 
   function formatDate(date: Date): string {
@@ -288,6 +328,21 @@
   }
 
   function getEventPosition(todo: Todo): { top: number; height: number } {
+    // Use visual state if this event is being resized
+    if (isResizing && resizeEventId === todo.id && resizeVisualState) {
+      const time = resizeVisualState.time || todo.time;
+      const duration = resizeVisualState.duration ?? todo.duration ?? 30;
+
+      if (!time) return { top: 0, height: 40 };
+
+      const [hours, minutes] = time.split(':').map(Number);
+      const top = (minutes / 60) * 40;
+      const height = (duration / 60) * 40;
+
+      return { top, height };
+    }
+
+    // Normal rendering
     if (!todo.time) return { top: 0, height: 40 };
 
     const [hours, minutes] = todo.time.split(':').map(Number);
@@ -314,32 +369,32 @@
   <div class="week-view-grid">
     <!-- En-tête avec les jours de la semaine -->
     <div class="time-column-header"></div>
-    {#each $daysInWeek as day (day.getTime())}
-      <div class="day-header" class:today={isToday(day)}>
-        <span class="day-name">{day.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-        <span class="day-number">{day.getDate()}</span>
+    {#each daysMetadata as dayMeta (dayMeta.timestamp)}
+      <div class="day-header" class:today={dayMeta.isToday}>
+        <span class="day-name">{dayMeta.weekday}</span>
+        <span class="day-number">{dayMeta.dayNumber}</span>
       </div>
     {/each}
 
     <!-- Zone All-Day -->
     <div class="time-column-all-day">Toute la journée</div>
-    {#each $daysInWeek as day (day.getTime())}
-      <AllDayZone {day} todos={getAllDayTodosForDay(day, $todos)} hideLabel={true} />
+    {#each daysMetadata as dayMeta (dayMeta.timestamp)}
+      <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
     {/each}
 
     <!-- Grille horaire -->
     {#each hours as hour}
       <div class="time-cell">{hour}:00</div>
-      {#each $daysInWeek as day, dayIndex (day.getTime())}
+      {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
         <div
           class="event-cell"
-          class:today={isToday(day)}
+          class:today={dayMeta.isToday}
           on:dragover={handleDragOver}
-          on:drop={(e) => handleDrop(e, day, hour)}
+          on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
           role="gridcell"
           tabindex="0"
         >
-          {#each getTodosForHour(day, hour, $todos) as todo (todo.id)}
+          {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
             {@const position = getEventPosition(todo)}
             <div
               class="calendar-event"

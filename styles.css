@@ -15,6 +15,9 @@
   flex-grow: 1;
   overflow-y: auto;
   overflow-x: auto;
+  /* GPU acceleration for smooth sidebar animations */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .calendar-container {
@@ -45,7 +48,7 @@
   cursor: pointer;
   border-radius: 4px;
   font-size: 1em;
-  transition: background-color 0.2s;
+  transition: background-color 0.1s;
 }
 
 .nav-button:hover {
@@ -65,6 +68,8 @@
   grid-auto-rows: minmax(40px, auto); /* Flexible row height for hours */
   gap: 0;
   border: 1px solid var(--background-modifier-border);
+  /* CSS containment to isolate layout calculations */
+  contain: layout style paint;
 }
 
 .time-column-header {
@@ -137,7 +142,7 @@
   padding-right: 10px;
   font-size: 0.75em;
   color: var(--text-muted);
-  border-top: 1px dashed var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
   height: 40px;
   display: flex;
   align-items: flex-start;
@@ -147,12 +152,12 @@
 }
 
 .time-cell:first-of-type {
-  border-top: none; /* No dashed line for 0:00 */
+  border-top: none;
 }
 
 .event-cell {
   border-left: 1px solid var(--background-modifier-border);
-  border-top: 1px dashed var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
   height: 40px;
   position: relative;
 }
@@ -180,7 +185,7 @@
   height: 8px;
   background-color: transparent;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.1s;
   z-index: 10;
 }
 

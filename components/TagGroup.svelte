@@ -1,9 +1,13 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
+  import type { App } from 'obsidian';
   import type { TagGroup as TagGroupType, Todo } from '../types';
   import { collapsedTags, toggleTagCollapsed } from '../stores/uiStore';
+  import { openTodoInEditor } from '../utils/editorUtils';
 
   export let group: TagGroupType;
 
+  const app = getContext<App>('app');
   let isCollapsed = false;
 
   // S'abonner aux tags collapsed
@@ -13,6 +17,10 @@
 
   function handleToggle() {
     toggleTagCollapsed(group.tag);
+  }
+
+  async function handleDoubleClick(todo: Todo) {
+    await openTodoInEditor(app, todo);
   }
 
   function handleDragStart(event: DragEvent, todo: Todo) {
@@ -96,6 +104,7 @@
           class="todo-item {getPriorityClass(todo.priority)}"
           draggable="true"
           on:dragstart={(e) => handleDragStart(e, todo)}
+          on:dblclick={() => handleDoubleClick(todo)}
           role="listitem"
         >
           <div class="todo-main">

@@ -1,22 +1,113 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
+  import { App, Menu } from 'obsidian';
   import type { Todo } from '../types';
+  import type { VaultSync } from '../services/VaultSync';
+  import { todos as todosStore } from '../stores/todoStore';
+  import { openTodoInEditor } from '../utils/editorUtils';
 
   export let day: Date;
   export let todos: Todo[];
   export let hideLabel: boolean = false;
 
+  const app = getContext<App>('app');
+  const vaultSync = getContext<VaultSync>('vaultSync');
+
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
   }
 
-  function handleDrop(event: DragEvent) {
+  async function handleDrop(event: DragEvent) {
     event.preventDefault();
-    // TODO: Gérer le drop dans la zone all-day
     const data = event.dataTransfer?.getData('text/plain');
-    if (data) {
-      const todoData = JSON.parse(data);
-      console.log('Dropped in all-day zone:', todoData, 'on', day);
+    if (!data) return;
+
+    try {
+      const dragData = JSON.parse(data);
+      const todoId = dragData.id;
+
+      // Trouver le todo dans le store
+      const todo = todosStore.subscribe(todos => {
+        const foundTodo = todos.find(t => t.id === todoId);
+        if (!foundTodo) return;
+
+        // Format date (all-day = pas de time)
+        const year = day.getFullYear();
+        const month = String(day.getMonth() + 1).padStart(2, '0');
+        const dayNum = String(day.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${dayNum}`;
+
+        // Mettre à jour le todo dans le vault (all-day = pas de time)
+        vaultSync.updateTodoInVault(foundTodo, {
+          date: dateStr,
+          time: undefined
+        });
+      });
+
+      // Unsubscribe immediately
+      todo();
+
+    } catch (error) {
+      console.error('Error handling all-day drop:', error);
     }
+  }
+
+  async function handleEventDoubleClick(todo: Todo) {
+    await openTodoInEditor(app, todo);
+  }
+
+  function handleEventDragStart(event: DragEvent, todo: Todo) {
+    if (event.dataTransfer) {
+      event.dataTransfer.setData('text/plain', JSON.stringify({
+        id: todo.id,
+        text: todo.text,
+        isCalendarEvent: true,
+        isAllDay: true
+      }));
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  async function handleEventContextMenu(event: MouseEvent, todo: Todo) {
+    event.preventDefault();
+
+    const menu = new Menu();
+
+    menu.addItem((item) => {
+      item
+        .setTitle('Retirer du calendrier')
+        .setIcon('calendar-x')
+        .onClick(async () => {
+          // Retirer la date du todo (all-day donc pas de time)
+          await vaultSync.updateTodoInVault(todo, {
+            date: undefined,
+            time: undefined
+          });
+        });
+    });
+
+    menu.addItem((item) => {
+      item
+        .setTitle('Ouvrir le fichier')
+        .setIcon('file-text')
+        .onClick(async () => {
+          await openTodoInEditor(app, todo);
+        });
+    });
+
+    menu.addSeparator();
+
+    menu.addItem((item) => {
+      item
+        .setTitle('Supprimer la tâche')
+        .setIcon('trash')
+        .onClick(async () => {
+          // TODO: Implémenter la suppression complète du todo
+          console.log('Delete todo:', todo.id);
+        });
+    });
+
+    menu.showAtMouseEvent(event);
   }
 </script>
 
@@ -31,7 +122,13 @@
     <div class="all-day-placeholder">Toute la journée</div>
   {:else}
     {#each todos as todo (todo.id)}
-      <div class="all-day-event">
+      <div
+        class="all-day-event"
+        draggable="true"
+        on:dragstart={(e) => handleEventDragStart(e, todo)}
+        on:dblclick={() => handleEventDoubleClick(todo)}
+        on:contextmenu={(e) => handleEventContextMenu(e, todo)}
+      >
         {todo.text}
       </div>
     {/each}

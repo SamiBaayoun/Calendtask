@@ -11,44 +11,9 @@ import type { Todo, Priority, Status } from '../types';
  * - [-] Cancelled task
  */
 export class TodoParser {
-  private vault: Vault;
-
-  constructor(vault: Vault) {
-    this.vault = vault;
+  constructor() {
   }
 
-  /**
-   * Parse tous les fichiers markdown du vault
-   */
-  async parseTodosFromVault(): Promise<Todo[]> {
-    const allFiles = this.vault.getMarkdownFiles();
-    const allTodos: Todo[] = [];
-
-    for (const file of allFiles) {
-      const todos = await this.parseTodoFromFile(file);
-      allTodos.push(...todos);
-    }
-
-    return allTodos;
-  }
-
-  /**
-   * Parse un fichier spécifique
-   */
-  async parseTodoFromFile(file: TFile): Promise<Todo[]> {
-    const content = await this.vault.read(file);
-    const lines = content.split('\n');
-    const todos: Todo[] = [];
-
-    lines.forEach((line, index) => {
-      const todo = this.parseTaskLine(line, file.path, index);
-      if (todo) {
-        todos.push(todo);
-      }
-    });
-
-    return todos;
-  }
 
   /**
    * Parse une ligne de tâche markdown avec métadonnées inline

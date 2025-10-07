@@ -1,5 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type { Todo, TagGroup } from '../types';
+import { searchQuery } from './uiStore';
 
 /**
  * Store principal des todos
@@ -7,9 +8,32 @@ import type { Todo, TagGroup } from '../types';
 export const todos = writable<Todo[]>([]);
 
 /**
+ * Store dérivé : Todos filtrés par recherche
+ */
+export const filteredTodos = derived([todos, searchQuery], ([$todos, $searchQuery]) => {
+  if (!$searchQuery || $searchQuery.trim() === '') {
+    return $todos;
+  }
+
+  const query = $searchQuery.toLowerCase();
+  return $todos.filter(todo => {
+    // Recherche dans le texte
+    if (todo.text.toLowerCase().includes(query)) return true;
+
+    // Recherche dans les tags
+    if (todo.tags.some(tag => tag.toLowerCase().includes(query))) return true;
+
+    // Recherche dans la priorité
+    if (todo.priority?.toLowerCase().includes(query)) return true;
+
+    return false;
+  });
+});
+
+/**
  * Store dérivé : Grouper les todos par tags
  */
-export const tagGroups = derived(todos, ($todos) => {
+export const tagGroups = derived(filteredTodos, ($filteredTodos) => {
   const groups = new Map<string, TagGroup>();
 
   // Groupe "Sans tag" pour les todos sans tag
@@ -20,7 +44,7 @@ export const tagGroups = derived(todos, ($todos) => {
   });
 
   // Grouper par tag
-  $todos.forEach((todo) => {
+  $filteredTodos.forEach((todo) => {
     if (todo.tags.length === 0) {
       groups.get('_no_tag')!.todos.push(todo);
     } else {

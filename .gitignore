@@ -5,3 +5,4 @@ main.js
 .hotreload
 .claude/settings.local.json
 .dev-notes.md
+data.json

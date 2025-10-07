@@ -1267,6 +1267,7 @@ data.json + Vault (update)
 - [ ] Parsing des tâches inline (format liste)
 - [ ] Support des durées estimées
 - [ ] Double-clic pour ouvrir le fichier source (editorUtils.ts)
+- [ ] Supprimé un todo du calendrier
 
 ### Phase 4 : Avancé
 - [ ] Récurrences : génération d'instances

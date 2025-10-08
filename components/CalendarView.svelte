@@ -246,16 +246,25 @@
       }
 
       if (Object.keys(updates).length > 0) {
+        // Optimistic update: Update store immediately to prevent flash
+        todos.update(currentTodos => {
+          return currentTodos.map(t =>
+            t.id === resizeTodo.id ? { ...t, ...updates } : t
+          );
+        });
+
+        // Then save to vault (handleFileModify will update store again, but UI is already correct)
         await vaultSync.updateTodoInVault(resizeTodo, updates);
       }
-    }
 
-    isResizing = false;
-    resizeEventId = null;
-    resizeTodo = null;
-    initialTime = null;
-    resizeHandleType = null;
-    resizeVisualState = null;
+      // Reset state AFTER store update
+      isResizing = false;
+      resizeEventId = null;
+      resizeTodo = null;
+      initialTime = null;
+      resizeHandleType = null;
+      resizeVisualState = null;
+    }
 
     // Detach listeners when done
     window.removeEventListener('mousemove', handleMouseMove);

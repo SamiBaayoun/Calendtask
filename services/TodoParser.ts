@@ -122,21 +122,24 @@ export class TodoParser {
   }
 
   /**
-   * Extrait la durée (⏱XXmin ou ⏱XXh)
+   * Extrait la durée (⏱XXmin ou ⏱XXh ou ⏱XXhYYmin ou ⏱XXhYY)
    */
   extractDuration(line: string): number | undefined {
-    // Format: ⏱60min ou ⏱2h
-    const durationRegex = /⏱(\d+)(min|h)/;
+    // Format: ⏱60min, ⏱2h, ⏱2h30min, ⏱2h30
+    const durationRegex = /⏱(\d+)h(?:(\d+)(?:min)?)?|⏱(\d+)min/;
     const match = line.match(durationRegex);
 
     if (match) {
-      const value = parseInt(match[1], 10);
-      const unit = match[2];
-
-      if (unit === 'h') {
-        return value * 60; // Convertir en minutes
+      // Format ⏱XXhYY or ⏱XXhYYmin
+      if (match[1]) {
+        const hours = parseInt(match[1], 10);
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
+        return hours * 60 + minutes;
       }
-      return value;
+      // Format ⏱XXmin
+      if (match[3]) {
+        return parseInt(match[3], 10);
+      }
     }
 
     return undefined;
@@ -173,8 +176,9 @@ export class TodoParser {
       .replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, '')
       // Retirer la priorité
       .replace(/!(low|medium|high|critical)/gi, '')
-      // Retirer la durée
-      .replace(/⏱\d+(min|h)/g, '')
+      // Retirer la durée (formats: ⏱XXmin, ⏱XXh, ⏱XXhYY, ⏱XXhYYmin)
+      .replace(/⏱\d+h\d+(?:min)?/g, '')
+      .replace(/⏱\d+(?:min|h)/g, '')
       // Nettoyer les espaces multiples
       .replace(/\s+/g, ' ')
       .trim();
@@ -201,7 +205,11 @@ export class TodoParser {
       todo.time ? `⏰${todo.time}` : '',
       todo.duration
         ? (todo.duration >= 60
-            ? `⏱${Math.round(todo.duration / 60)}h`
+            ? (() => {
+                const hours = Math.floor(todo.duration / 60);
+                const minutes = todo.duration % 60;
+                return minutes > 0 ? `⏱${hours}h${minutes}` : `⏱${hours}h`;
+              })()
             : `⏱${todo.duration}min`)
         : ''
     ].filter(p => p).join(' ');

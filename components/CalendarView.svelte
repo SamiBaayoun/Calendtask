@@ -19,45 +19,58 @@
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   // Événements pour le resize et drag
-  let isResizing = false;
-  let resizeEventId: string | null = null;
-  let resizeTodo: Todo | null = null;
+  let isResizing = $state(false);
+  let resizeEventId = $state<string | null>(null);
+  let resizeTodo = $state<Todo | null>(null);
   let initialY = 0;
   let initialDuration = 0;
   let initialTime: string | null = null;
   let resizeHandleType: 'top' | 'bottom' | null = null;
 
   // Local state for visual resize feedback (not saved to store until mouseup)
-  let resizeVisualState: { time?: string; duration?: number } | null = null;
+  let resizeVisualState = $state<{ time?: string; duration?: number } | null>(null);
+
+  // Helper function to get the effective time for a todo (considers resize state)
+  function getEffectiveTime(todo: Todo): string | undefined {
+    // If this todo is being resized and we have a new time in visual state
+    if (isResizing && resizeEventId === todo.id && resizeVisualState?.time) {
+      return resizeVisualState.time;
+    }
+    // Otherwise, return the normal time from store
+    return todo.time;
+  }
 
   // Pre-compute todos by day+hour for efficient rendering (replaces 175 filters per render)
-  $: todosByDayHour = (() => {
+  let todosByDayHour = $derived.by(() => {
     const byHour = new Map<string, Todo[]>();
     const byDay = new Map<string, Todo[]>();
 
     $todos.forEach(todo => {
       if (!todo.date) return;
 
+      // Get effective time (considers resize state)
+      const effectiveTime = getEffectiveTime(todo);
+
       // All-day todos (no time)
-      if (!todo.time) {
+      if (!effectiveTime) {
         const key = todo.date;
         if (!byDay.has(key)) byDay.set(key, []);
         byDay.get(key)!.push(todo);
         return;
       }
 
-      // Timed todos
-      const [hours] = todo.time.split(':').map(Number);
+      // Timed todos - use effective time for indexing
+      const [hours] = effectiveTime.split(':').map(Number);
       const key = `${todo.date}-${hours}`;
       if (!byHour.has(key)) byHour.set(key, []);
       byHour.get(key)!.push(todo);
     });
 
     return { byHour, byDay };
-  })();
+  });
 
   // Pre-compute day metadata to avoid repeated calculations (189 → 7 per render)
-  $: daysMetadata = $daysInWeek.map(day => {
+  let daysMetadata = $derived($daysInWeek.map(day => {
     const today = new Date();
     const isToday = day.getDate() === today.getDate() &&
                     day.getMonth() === today.getMonth() &&
@@ -70,7 +83,7 @@
       dayNumber: day.getDate(),
       timestamp: day.getTime()
     };
-  });
+  }));
 
   onMount(() => {
     // Cleanup on unmount (mouseup listener is added/removed dynamically)
@@ -142,6 +155,13 @@
     initialDuration = todo.duration || 30;
     initialTime = todo.time || null;
     resizeHandleType = type;
+
+    // Initialize visual state with current values to prevent jump
+    resizeVisualState = {
+      time: todo.time,
+      duration: todo.duration || 30
+    };
+
     event.stopPropagation();
     event.preventDefault();
 
@@ -155,12 +175,13 @@
 
     const deltaY = event.clientY - initialY;
     const cellHeight = 40; // 40px par heure
-    const deltaMinutes = Math.round((deltaY / cellHeight) * 60);
+    // Ne pas arrondir le delta, garder la précision
+    const deltaMinutes = (deltaY / cellHeight) * 60;
 
     if (resizeHandleType === 'bottom') {
       // Resize depuis le bas : augmenter/diminuer la durée
       let newDuration = Math.max(15, initialDuration + deltaMinutes); // Min 15 minutes
-      // Snap to 15-minute increments
+      // Snap to 15-minute increments (arrondir la durée finale, pas le delta)
       newDuration = Math.round(newDuration / 15) * 15;
 
       // Vérifier que l'événement ne dépasse pas 23:59
@@ -175,8 +196,6 @@
 
       // Store in local state only (no store update = no re-render)
       resizeVisualState = { duration: newDuration };
-      // Force Svelte reactivity (trick: self-assignment triggers change detection)
-      resizeVisualState = resizeVisualState;
 
     } else if (resizeHandleType === 'top') {
       // Resize depuis le haut : déplacer l'heure de début ET ajuster la durée
@@ -209,8 +228,6 @@
         const newTime = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
         // Store in local state only (no store update = no re-render)
         resizeVisualState = { time: newTime, duration: newDuration };
-        // Force Svelte reactivity (trick: self-assignment triggers change detection)
-        resizeVisualState = resizeVisualState;
       }
     }
   }
@@ -330,14 +347,15 @@
   function getEventPosition(todo: Todo): { top: number; height: number } {
     // Use visual state if this event is being resized
     if (isResizing && resizeEventId === todo.id && resizeVisualState) {
-      const time = resizeVisualState.time || todo.time;
       const duration = resizeVisualState.duration ?? todo.duration ?? 30;
+      const height = (duration / 60) * 40;
 
-      if (!time) return { top: 0, height: 40 };
+      // Use time from visual state if available (for top handle resize)
+      const time = resizeVisualState.time || todo.time;
+      if (!time) return { top: 0, height };
 
       const [hours, minutes] = time.split(':').map(Number);
       const top = (minutes / 60) * 40;
-      const height = (duration / 60) * 40;
 
       return { top, height };
     }

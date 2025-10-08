@@ -213,13 +213,18 @@ export class VaultSync {
 
       // Update duration
       if ('duration' in updates) {
-        // Remove existing duration
+        // Remove existing duration (all formats: ⏱XXmin, ⏱XXh, ⏱XXhYY, ⏱XXhYYmin)
+        updatedLine = updatedLine.replace(/⏱\d+h\d+(?:min)?/g, '');
         updatedLine = updatedLine.replace(/⏱\d+(?:min|h)/g, '');
 
         // Add new duration if provided
         if (updates.duration) {
           const durationStr = updates.duration >= 60
-            ? `⏱${Math.round(updates.duration / 60)}h`
+            ? (() => {
+                const hours = Math.floor(updates.duration / 60);
+                const minutes = updates.duration % 60;
+                return minutes > 0 ? `⏱${hours}h${minutes}` : `⏱${hours}h`;
+              })()
             : `⏱${updates.duration}min`;
 
           // Insert before tags or at the end

@@ -6,3 +6,6 @@ main.js
 .claude/settings.local.json
 .dev-notes.md
 data.json
+quick-commit.sh
+.gitignore
+.claude/commands/commit.md

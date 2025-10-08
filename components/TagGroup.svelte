@@ -74,7 +74,9 @@
     // Durée
     if (todo.duration) {
       if (todo.duration >= 60) {
-        parts.push(`⏱ ${Math.round(todo.duration / 60)}h`);
+        const hours = Math.floor(todo.duration / 60);
+        const minutes = todo.duration % 60;
+        parts.push(minutes > 0 ? `⏱ ${hours}h${minutes}` : `⏱ ${hours}h`);
       } else {
         parts.push(`⏱ ${todo.duration}min`);
       }

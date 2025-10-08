@@ -1,5 +1,5 @@
 import { TFile, Vault } from 'obsidian';
-import type { Todo, Priority, Status } from '../types';
+import type { Todo, Priority, Status, TodoColor } from '../types';
 
 /**
  * TodoParser - Parse les fichiers markdown pour extraire les todos
@@ -217,8 +217,8 @@ export class TodoParser {
     const parts = [
       `- ${checkbox}`,
       todo.text,
-      tags,
       temporalParts,
+      tags,
       priority,
     ].filter(p => p);
 

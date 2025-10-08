@@ -37,7 +37,7 @@
     width: 250px;
     padding: 10px;
     border-right: 1px solid var(--background-modifier-border);
-    background-color: var(--background-primary);
+    background-color: var(--background-secondary);
     overflow-y: auto;
     display: flex;
     flex-direction: column;

@@ -183,8 +183,8 @@ export class VaultSync {
         // Add new date if provided (nouveau format Tasks)
         if (updates.date) {
           const scheduledDateStr = `⏳${updates.date}`;
-          // Insert before priority or at the end
-          updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*!|⏱|$)/, `$1 ${scheduledDateStr} $2`);
+          // Insert before tags, priority, duration or at the end
+          updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*#|\s*!|\s*⏱|$)/, `$1 ${scheduledDateStr} $2`);
 
           // Determine time to use: update value if specified, otherwise keep existing
           const timeToUse = updates.time !== undefined ? updates.time : todo.time;
@@ -273,7 +273,7 @@ export class VaultSync {
    * Remove date from a todo (move it back to unscheduled)
    */
   async removeDateFromTodo(todo: Todo): Promise<void> {
-    await this.updateTodoInVault(todo, { date: undefined, time: undefined });
+    await this.updateTodoInVault(todo, { date: undefined, time: undefined, duration: undefined });
   }
 
   /**

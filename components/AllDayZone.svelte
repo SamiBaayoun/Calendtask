@@ -78,10 +78,11 @@
         .setTitle('Retirer du calendrier')
         .setIcon('calendar-x')
         .onClick(async () => {
-          // Retirer la date du todo (all-day donc pas de time)
+          // Retirer la date, l'heure et la durée du todo
           await vaultSync.updateTodoInVault(todo, {
             date: undefined,
-            time: undefined
+            time: undefined,
+            duration: undefined
           });
         });
     });
@@ -92,18 +93,6 @@
         .setIcon('file-text')
         .onClick(async () => {
           await openTodoInEditor(app, todo);
-        });
-    });
-
-    menu.addSeparator();
-
-    menu.addItem((item) => {
-      item
-        .setTitle('Supprimer la tâche')
-        .setIcon('trash')
-        .onClick(async () => {
-          // TODO: Implémenter la suppression complète du todo
-          console.log('Delete todo:', todo.id);
         });
     });
 

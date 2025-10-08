@@ -5,6 +5,7 @@
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export type Status = 'todo' | 'in-progress' | 'done' | 'cancelled';
 export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type TodoColor = 'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink';
 
 // ============================================================================
 // Recurrence Pattern

@@ -10,9 +10,11 @@
     goToToday
   } from '../stores/calendarStore';
   import { todos } from '../stores/todoStore';
-  import type { Todo } from '../types';
+  import { tagColors, setTagColor } from '../stores/uiStore';
+  import type { Todo, TodoColor } from '../types';
   import type { VaultSync } from '../services/VaultSync';
   import { openTodoInEditor } from '../utils/editorUtils';
+  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
@@ -297,15 +299,37 @@
 
     const menu = new Menu();
 
+    // Sous-menu pour changer la couleur (du tag ou "Sans tag")
+    menu.addItem((item) => {
+      const tagToColor = todo.tags && todo.tags.length > 0 ? todo.tags[0] : '';
+      const submenu = item
+        .setTitle(tagToColor ? `Couleur pour #${tagToColor}` : 'Couleur (Sans tag)')
+        .setIcon('palette');
+
+      // Ajouter chaque couleur comme sous-élément
+      Object.entries(TODO_COLORS).forEach(([colorKey, colorData]) => {
+        (item as any).setSubmenu().addItem((subItem: any) => {
+          subItem
+            .setTitle(colorData.name)
+            .onClick(() => {
+              setTagColor(tagToColor, colorKey as TodoColor);
+            });
+        });
+      });
+    });
+
+    menu.addSeparator();
+
     menu.addItem((item) => {
       item
         .setTitle('Retirer du calendrier')
         .setIcon('calendar-x')
         .onClick(async () => {
-          // Retirer la date et l'heure du todo
+          // Retirer la date, l'heure et la durée du todo
           await vaultSync.updateTodoInVault(todo, {
             date: undefined,
-            time: undefined
+            time: undefined,
+            duration: undefined
           });
         });
     });
@@ -316,18 +340,6 @@
         .setIcon('file-text')
         .onClick(async () => {
           await openTodoInEditor(app, todo);
-        });
-    });
-
-    menu.addSeparator();
-
-    menu.addItem((item) => {
-      item
-        .setTitle('Supprimer la tâche')
-        .setIcon('trash')
-        .onClick(async () => {
-          // TODO: Implémenter la suppression complète du todo
-          console.log('Delete todo:', todo.id);
         });
     });
 
@@ -423,9 +435,10 @@
         >
           {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
             {@const position = getEventPosition(todo)}
+            {@const colors = getTodoColorFromTags(todo, $tagColors)}
             <div
               class="calendar-event"
-              style="top: {position.top}px; height: {position.height}px;"
+              style="top: {position.top}px; height: {position.height}px; background-color: {colors.bg}; color: {colors.text};"
               draggable="true"
               on:dragstart={(e) => handleEventDragStart(e, todo)}
               on:dblclick={() => handleEventDoubleClick(todo)}
@@ -458,17 +471,31 @@
 
 <style>
   .calendar-event {
-    background-color: var(--interactive-accent);
-    color: white;
-    border-radius: 4px;
-    padding: 2px 5px;
+    border-radius: 6px;
+    padding: 6px 8px;
     font-size: 0.8em;
-    margin: 1px;
+    font-weight: 500;
+    margin: 2px;
     position: absolute;
-    width: calc(100% - 2px);
+    width: calc(100% - 4px);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     z-index: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    cursor: grab;
+    transition: all 0.15s ease;
+    border-left: 3px solid rgba(0, 0, 0, 0.15);
+  }
+
+  .calendar-event:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    z-index: 2;
+    filter: brightness(0.95);
+  }
+
+  .calendar-event:active {
+    cursor: grabbing;
   }
 </style>

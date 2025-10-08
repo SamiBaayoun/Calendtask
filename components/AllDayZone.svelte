@@ -27,25 +27,21 @@
       const todoId = dragData.id;
 
       // Trouver le todo dans le store
-      const todo = todosStore.subscribe(todos => {
-        const foundTodo = todos.find(t => t.id === todoId);
-        if (!foundTodo) return;
+      const foundTodo = $todosStore.find(t => t.id === todoId);
+      if (!foundTodo) return;
 
-        // Format date (all-day = pas de time)
-        const year = day.getFullYear();
-        const month = String(day.getMonth() + 1).padStart(2, '0');
-        const dayNum = String(day.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${dayNum}`;
+      // Format date (all-day = pas de time ni duration)
+      const year = day.getFullYear();
+      const month = String(day.getMonth() + 1).padStart(2, '0');
+      const dayNum = String(day.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${dayNum}`;
 
-        // Mettre à jour le todo dans le vault (all-day = pas de time)
-        vaultSync.updateTodoInVault(foundTodo, {
-          date: dateStr,
-          time: undefined
-        });
+      // Mettre à jour le todo dans le vault (all-day = pas de time ni duration)
+      await vaultSync.updateTodoInVault(foundTodo, {
+        date: dateStr,
+        time: undefined,
+        duration: undefined
       });
-
-      // Unsubscribe immediately
-      todo();
 
     } catch (error) {
       console.error('Error handling all-day drop:', error);

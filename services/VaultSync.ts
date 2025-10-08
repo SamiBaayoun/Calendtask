@@ -187,7 +187,7 @@ export class VaultSync {
           updatedLine = updatedLine.replace(/^(- \[.\] .+?)(\s*#|\s*!|\s*⏱|$)/, `$1 ${scheduledDateStr} $2`);
 
           // Determine time to use: update value if specified, otherwise keep existing
-          const timeToUse = updates.time !== undefined ? updates.time : todo.time;
+          const timeToUse = 'time' in updates ? updates.time : todo.time;
 
           if (timeToUse) {
             const timeStr = `⏰${timeToUse}`;

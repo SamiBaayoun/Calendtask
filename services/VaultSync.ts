@@ -240,6 +240,25 @@ export class VaultSync {
           : ' ';
 
         updatedLine = updatedLine.replace(/^(- \[)[^\]]*(\])/, `$1${statusChar}$2`);
+
+        // Add/remove completion date (✅ YYYY-MM-DD) like Obsidian Tasks plugin
+        if (updates.status === 'done') {
+          // Remove existing completion date first
+          updatedLine = updatedLine.replace(/\s*✅\d{4}-\d{2}-\d{2}/g, '');
+
+          // Add completion date with today's date
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          const completionDate = `✅${year}-${month}-${day}`;
+
+          // Insert at the very end of the line (after all metadata including tags)
+          updatedLine = updatedLine.trimEnd() + ` ${completionDate}`;
+        } else {
+          // Remove completion date when unchecking
+          updatedLine = updatedLine.replace(/\s*✅\d{4}-\d{2}-\d{2}/g, '');
+        }
       }
 
       // Update priority

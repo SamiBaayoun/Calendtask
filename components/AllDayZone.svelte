@@ -13,6 +13,9 @@
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
 
+  // Optimistic UI state for checkbox toggles
+  let togglingTodos = $state<Set<string>>(new Set());
+
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
   }
@@ -53,7 +56,12 @@
   }
 
   async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.preventDefault(); // Prevent default checkbox behavior
     event.stopPropagation(); // Empêcher le drag
+
+    // Add to toggling set for optimistic UI
+    togglingTodos.add(todo.id);
+    togglingTodos = new Set(togglingTodos); // Trigger reactivity
 
     // Basculer entre 'todo' et 'done'
     const newStatus = todo.status === 'done' ? 'todo' : 'done';
@@ -61,6 +69,10 @@
     await vaultSync.updateTodoInVault(todo, {
       status: newStatus
     });
+
+    // Remove from toggling set after update completes
+    togglingTodos.delete(todo.id);
+    togglingTodos = new Set(togglingTodos); // Trigger reactivity
   }
 
   function handleEventDragStart(event: DragEvent, todo: Todo) {
@@ -110,10 +122,10 @@
 
     menu.addItem((item) => {
       item
-        .setTitle('Retirer du calendrier')
+        .setTitle('Remove from calendar')
         .setIcon('calendar-x')
         .onClick(async () => {
-          // Retirer la date, l'heure et la durée du todo
+          // Remove date, time and duration from todo
           await vaultSync.updateTodoInVault(todo, {
             date: undefined,
             time: undefined,
@@ -124,7 +136,7 @@
 
     menu.addItem((item) => {
       item
-        .setTitle('Ouvrir le fichier')
+        .setTitle('Open file')
         .setIcon('file-text')
         .onClick(async () => {
           await openTodoInEditor(app, todo);
@@ -143,7 +155,7 @@
   aria-label="All-day events for {day.toLocaleDateString()}"
 >
   {#if todos.length === 0 && !hideLabel}
-    <div class="all-day-placeholder">Toute la journée</div>
+    <div class="all-day-placeholder">All day</div>
   {:else}
     {#each todos as todo (todo.id)}
       <div
@@ -157,7 +169,7 @@
         <input
           type="checkbox"
           class="allday-checkbox"
-          checked={todo.status === 'done'}
+          checked={togglingTodos.has(todo.id) ? todo.status !== 'done' : todo.status === 'done'}
           on:click={(e) => handleToggleStatus(e, todo)}
         />
         <span class="allday-text">{todo.text}</span>
@@ -209,24 +221,38 @@
   }
 
   .allday-checkbox {
-    width: 14px;
-    height: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
     flex-shrink: 0;
-    border-radius: 2px;
-    border: 1.5px solid rgba(255, 255, 255, 0.6);
-    background-color: transparent;
+    border-radius: 3px;
+    border: 1px solid var(--text-normal);
+    background-color: var(--background-primary);
     transition: all 0.15s ease;
+    position: relative;
   }
 
   .allday-checkbox:checked {
-    background-color: rgba(255, 255, 255, 0.9);
-    border-color: rgba(255, 255, 255, 0.9);
+    background-color: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+  }
+
+  .allday-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
   }
 
   .allday-checkbox:hover {
-    transform: scale(1.15);
-    border-color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.1);
+    border-color: var(--interactive-accent);
   }
 
   .allday-text {

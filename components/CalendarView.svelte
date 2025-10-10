@@ -36,6 +36,9 @@
   let draggedOverCell = $state<{ dayIndex: number; hour: number } | null>(null);
   let dropPreview = $state<{ dayIndex: number; hour: number; offsetY: number; todo: Todo } | null>(null);
 
+  // Optimistic UI state for checkbox toggles
+  let togglingTodos = $state<Set<string>>(new Set());
+
   // Helper function to get the effective time for a todo (considers resize state)
   function getEffectiveTime(todo: Todo): string | undefined {
     // If this todo is being resized and we have a new time in visual state
@@ -85,7 +88,7 @@
     return {
       date: day,
       isToday,
-      weekday: day.toLocaleDateString('fr-FR', { weekday: 'short' }),
+      weekday: day.toLocaleDateString('en-US', { weekday: 'short' }),
       dayNumber: day.getDate(),
       timestamp: day.getTime()
     };
@@ -330,7 +333,12 @@
   }
 
   async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.preventDefault(); // Prevent default checkbox behavior
     event.stopPropagation(); // Empêcher le drag
+
+    // Add to toggling set for optimistic UI
+    togglingTodos.add(todo.id);
+    togglingTodos = new Set(togglingTodos); // Trigger reactivity
 
     // Basculer entre 'todo' et 'done'
     const newStatus = todo.status === 'done' ? 'todo' : 'done';
@@ -338,6 +346,10 @@
     await vaultSync.updateTodoInVault(todo, {
       status: newStatus
     });
+
+    // Remove from toggling set after update completes
+    togglingTodos.delete(todo.id);
+    togglingTodos = new Set(togglingTodos); // Trigger reactivity
   }
 
   function handleEventDragStart(event: DragEvent, todo: Todo) {
@@ -414,10 +426,10 @@
 
     menu.addItem((item) => {
       item
-        .setTitle('Retirer du calendrier')
+        .setTitle('Remove from calendar')
         .setIcon('calendar-x')
         .onClick(async () => {
-          // Retirer la date, l'heure et la durée du todo
+          // Remove date, time and duration from todo
           await vaultSync.updateTodoInVault(todo, {
             date: undefined,
             time: undefined,
@@ -428,7 +440,7 @@
 
     menu.addItem((item) => {
       item
-        .setTitle('Ouvrir le fichier')
+        .setTitle('Open file')
         .setIcon('file-text')
         .onClick(async () => {
           await openTodoInEditor(app, todo);
@@ -489,11 +501,11 @@
   <div class="calendar-header">
     <div class="calendar-navigation">
       <button on:click={goToPreviousWeek} class="nav-button">&lt;</button>
-      <button on:click={goToToday} class="nav-button">Aujourd'hui</button>
+      <button on:click={goToToday} class="nav-button">Today</button>
       <button on:click={goToNextWeek} class="nav-button">&gt;</button>
     </div>
     <h2 class="current-week-display">
-      {$currentWeekStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+      {$currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
     </h2>
   </div>
 
@@ -543,7 +555,7 @@
                 <input
                   type="checkbox"
                   class="event-checkbox"
-                  checked={todo.status === 'done'}
+                  checked={togglingTodos.has(todo.id) ? todo.status !== 'done' : todo.status === 'done'}
                   on:click={(e) => handleToggleStatus(e, todo)}
                 />
                 <span class="event-text">{todo.text}</span>
@@ -631,24 +643,38 @@
   }
 
   .event-checkbox {
-    width: 14px;
-    height: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
     flex-shrink: 0;
-    border-radius: 2px;
-    border: 1.5px solid rgba(255, 255, 255, 0.6);
-    background-color: transparent;
+    border-radius: 3px;
+    border: 1px solid var(--text-normal);
+    background-color: var(--background-primary);
     transition: all 0.15s ease;
+    position: relative;
   }
 
   .event-checkbox:checked {
-    background-color: rgba(255, 255, 255, 0.9);
-    border-color: rgba(255, 255, 255, 0.9);
+    background-color: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+  }
+
+  .event-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
   }
 
   .event-checkbox:hover {
-    transform: scale(1.15);
-    border-color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.1);
+    border-color: var(--interactive-accent);
   }
 
   .event-text {

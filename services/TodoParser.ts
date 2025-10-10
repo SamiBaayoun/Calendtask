@@ -174,6 +174,8 @@ export class TodoParser {
       .replace(/⏰\d{2}:\d{2}/g, '')
       // Retirer la date/heure (ancien format)
       .replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, '')
+      // Retirer la date de complétion (format Tasks)
+      .replace(/✅\d{4}-\d{2}-\d{2}/g, '')
       // Retirer la priorité
       .replace(/!(low|medium|high|critical)/gi, '')
       // Retirer la durée (formats: ⏱XXmin, ⏱XXh, ⏱XXhYY, ⏱XXhYYmin)

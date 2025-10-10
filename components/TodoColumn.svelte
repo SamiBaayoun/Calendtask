@@ -20,23 +20,23 @@
 <div class="todo-column">
   <div class="todo-header">
     <div class="header-row">
-      <h3>Mes Tâches</h3>
+      <h3>My Tasks</h3>
       <button
         class="toggle-completed-btn"
         class:active={$hideCompleted}
         on:click={toggleHideCompleted}
-        aria-label={$hideCompleted ? 'Afficher les tâches terminées' : 'Cacher les tâches terminées'}
+        aria-label={$hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
       >
         {$hideCompleted ? '👁️‍🗨️' : '👁️'}
         <span class="btn-tooltip">
-          {$hideCompleted ? 'Afficher les terminées' : 'Cacher les terminées'}
+          {$hideCompleted ? 'Show completed' : 'Hide completed'}
         </span>
       </button>
     </div>
     <input
       type="text"
       class="search-input"
-      placeholder="🔍 Rechercher..."
+      placeholder="🔍 Search..."
       value={query}
       on:input={handleSearch}
     />
@@ -104,7 +104,7 @@
 
   .btn-tooltip {
     position: absolute;
-    bottom: calc(100% + 8px);
+    top: calc(100% + 8px);
     right: 0;
     background-color: var(--background-secondary);
     color: var(--text-normal);

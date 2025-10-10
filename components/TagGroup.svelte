@@ -37,11 +37,11 @@
 
     const menu = new Menu();
 
-    // Sous-menu pour changer la couleur (du tag ou "Sans tag")
+    // Submenu to change color (for tag or "No tag")
     menu.addItem((item) => {
       const tagToColor = todo.tags && todo.tags.length > 0 ? todo.tags[0] : '';
       const submenu = item
-        .setTitle(tagToColor ? `Couleur pour #${tagToColor}` : 'Couleur (Sans tag)')
+        .setTitle(tagToColor ? `Color for #${tagToColor}` : 'Color (No tag)')
         .setIcon('palette');
 
       // Ajouter chaque couleur comme sous-élément
@@ -60,7 +60,7 @@
 
     menu.addItem((item) => {
       item
-        .setTitle('Ouvrir le fichier')
+        .setTitle('Open file')
         .setIcon('file-text')
         .onClick(async () => {
           await openTodoInEditor(app, todo);
@@ -133,16 +133,16 @@
 
     // Check if today
     if (date.toDateString() === today.toDateString()) {
-      return "Aujourd'hui";
+      return "Today";
     }
 
     // Check if tomorrow
     if (date.toDateString() === tomorrow.toDateString()) {
-      return "Demain";
+      return "Tomorrow";
     }
 
     // Otherwise show date
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${date.getDate()} ${months[date.getMonth()]}`;
   }
 
@@ -156,6 +156,7 @@
   }
 
   async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.preventDefault(); // Prevent default checkbox behavior
     event.stopPropagation(); // Empêcher le drag
 
     // Basculer entre 'todo' et 'done'
@@ -174,7 +175,7 @@
       {#if group.tag}
         {group.tag}
       {:else}
-        Sans tag
+        No tag
       {/if}
     </span>
     <span class="tag-count">({visibleTodos.length})</span>
@@ -326,7 +327,7 @@
     cursor: pointer;
     flex-shrink: 0;
     border-radius: 3px;
-    border: 2px solid var(--text-normal);
+    border: 1px solid var(--text-normal);
     background-color: var(--background-primary);
     transition: all 0.15s ease;
     position: relative;

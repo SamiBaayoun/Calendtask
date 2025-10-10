@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "calendtask",
+	"name": "CalendTask",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "A powerful task management plugin with a visual weekly calendar. Schedule your tasks with drag-and-drop, manage priorities, and track time.",
+	"author": "SamiBaayoun",
+	"authorUrl": "https://github.com/SamiBaayoun",
 	"isDesktopOnly": false
 }

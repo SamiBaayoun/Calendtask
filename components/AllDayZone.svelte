@@ -52,6 +52,17 @@
     await openTodoInEditor(app, todo);
   }
 
+  async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.stopPropagation(); // Empêcher le drag
+
+    // Basculer entre 'todo' et 'done'
+    const newStatus = todo.status === 'done' ? 'todo' : 'done';
+
+    await vaultSync.updateTodoInVault(todo, {
+      status: newStatus
+    });
+  }
+
   function handleEventDragStart(event: DragEvent, todo: Todo) {
     if (event.dataTransfer) {
       event.dataTransfer.setData('text/plain', JSON.stringify({
@@ -61,6 +72,34 @@
         isAllDay: true
       }));
       event.dataTransfer.effectAllowed = 'move';
+
+      // Créer une image fantôme pour les événements all-day
+      const target = event.currentTarget as HTMLElement;
+      const ghost = target.cloneNode(true) as HTMLElement;
+
+      // Positionner hors écran mais visible pour le rendu
+      ghost.style.position = 'fixed';
+      ghost.style.top = '-9999px';
+      ghost.style.left = '-9999px';
+      ghost.style.width = '280px';
+      ghost.style.maxWidth = '280px';
+      ghost.style.opacity = '0.85';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.zIndex = '10000';
+      ghost.style.transform = 'none';
+      ghost.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
+
+      document.body.appendChild(ghost);
+
+      // Utiliser l'élément comme drag image
+      event.dataTransfer.setDragImage(ghost, 20, 20);
+
+      // Nettoyer après un court délai
+      setTimeout(() => {
+        if (ghost.parentNode) {
+          document.body.removeChild(ghost);
+        }
+      }, 50);
     }
   }
 
@@ -109,12 +148,19 @@
     {#each todos as todo (todo.id)}
       <div
         class="all-day-event"
+        class:completed={todo.status === 'done'}
         draggable="true"
         on:dragstart={(e) => handleEventDragStart(e, todo)}
         on:dblclick={() => handleEventDoubleClick(todo)}
         on:contextmenu={(e) => handleEventContextMenu(e, todo)}
       >
-        {todo.text}
+        <input
+          type="checkbox"
+          class="allday-checkbox"
+          checked={todo.status === 'done'}
+          on:click={(e) => handleToggleStatus(e, todo)}
+        />
+        <span class="allday-text">{todo.text}</span>
       </div>
     {/each}
   {/if}
@@ -149,9 +195,48 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .all-day-event:hover {
     opacity: 0.9;
+  }
+
+  .all-day-event.completed {
+    opacity: 0.6;
+  }
+
+  .allday-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 2px;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    background-color: transparent;
+    transition: all 0.15s ease;
+  }
+
+  .allday-checkbox:checked {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .allday-checkbox:hover {
+    transform: scale(1.15);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .allday-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .all-day-event.completed .allday-text {
+    text-decoration: line-through;
   }
 </style>

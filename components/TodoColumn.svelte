@@ -1,7 +1,7 @@
 <script lang="ts">
   import TagGroup from './TagGroup.svelte';
-  import { tagGroups } from '../stores/todoStore';
-  import { searchQuery } from '../stores/uiStore';
+  import { tagGroupsWithoutDate } from '../stores/todoStore';
+  import { searchQuery, hideCompleted } from '../stores/uiStore';
 
   let query = '';
 
@@ -11,11 +11,28 @@
     query = target.value;
     searchQuery.set(query);
   }
+
+  function toggleHideCompleted() {
+    hideCompleted.update(v => !v);
+  }
 </script>
 
 <div class="todo-column">
   <div class="todo-header">
-    <h3>Mes Tâches</h3>
+    <div class="header-row">
+      <h3>Mes Tâches</h3>
+      <button
+        class="toggle-completed-btn"
+        class:active={$hideCompleted}
+        on:click={toggleHideCompleted}
+        aria-label={$hideCompleted ? 'Afficher les tâches terminées' : 'Cacher les tâches terminées'}
+      >
+        {$hideCompleted ? '👁️‍🗨️' : '👁️'}
+        <span class="btn-tooltip">
+          {$hideCompleted ? 'Afficher les terminées' : 'Cacher les terminées'}
+        </span>
+      </button>
+    </div>
     <input
       type="text"
       class="search-input"
@@ -26,8 +43,8 @@
   </div>
 
   <div class="todo-list">
-    {#each $tagGroups as group (group.tag)}
-      <TagGroup {group} />
+    {#each $tagGroupsWithoutDate as group (group.tag)}
+      <TagGroup {group} hideCompletedTodos={$hideCompleted} />
     {/each}
   </div>
 </div>
@@ -47,10 +64,64 @@
     margin-bottom: 15px;
   }
 
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
   .todo-header h3 {
-    margin: 0 0 10px 0;
+    margin: 0;
     font-size: 1.2em;
     font-weight: 600;
+  }
+
+  .toggle-completed-btn {
+    background: transparent;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: all 0.15s ease;
+    opacity: 0.7;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .toggle-completed-btn:hover {
+    opacity: 1;
+    border-color: var(--interactive-accent);
+    background-color: var(--background-modifier-hover);
+  }
+
+  .toggle-completed-btn.active {
+    opacity: 1;
+    background-color: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+  }
+
+  .btn-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background-color: var(--background-secondary);
+    color: var(--text-normal);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--background-modifier-border);
+    z-index: 100;
+  }
+
+  .toggle-completed-btn:hover .btn-tooltip {
+    opacity: 1;
   }
 
   .search-input {

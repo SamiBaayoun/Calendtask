@@ -8,10 +8,16 @@
   import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
 
   export let group: TagGroupType;
+  export let hideCompletedTodos: boolean = false;
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
   let isCollapsed = false;
+
+  // Filtrer les todos terminés si hideCompletedTodos est activé
+  $: visibleTodos = hideCompletedTodos
+    ? group.todos.filter(todo => todo.status !== 'done')
+    : group.todos;
 
   // S'abonner aux tags collapsed
   collapsedTags.subscribe(tags => {
@@ -68,13 +74,33 @@
     if (event.dataTransfer) {
       event.dataTransfer.setData('text/plain', JSON.stringify({ id: todo.id, text: todo.text }));
 
-      // Créer une image fantôme
-      const ghost = document.createElement('div');
-      ghost.classList.add('todo-item-ghost');
-      ghost.textContent = todo.text;
+      // Cloner l'élément actuel pour l'image fantôme
+      const target = event.currentTarget as HTMLElement;
+      const ghost = target.cloneNode(true) as HTMLElement;
+
+      // Positionner hors écran mais visible pour le rendu
+      ghost.style.position = 'fixed';
+      ghost.style.top = '-9999px';
+      ghost.style.left = '-9999px';
+      ghost.style.width = '280px';
+      ghost.style.maxWidth = '280px';
+      ghost.style.opacity = '0.85';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.zIndex = '10000';
+      ghost.style.transform = 'none';
+      ghost.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
+
       document.body.appendChild(ghost);
-      event.dataTransfer.setDragImage(ghost, 0, 0);
-      setTimeout(() => document.body.removeChild(ghost), 0);
+
+      // Utiliser l'élément comme drag image
+      event.dataTransfer.setDragImage(ghost, 20, 20);
+
+      // Nettoyer après un court délai
+      setTimeout(() => {
+        if (ghost.parentNode) {
+          document.body.removeChild(ghost);
+        }
+      }, 50);
     }
   }
 
@@ -128,6 +154,17 @@
     }
     return `${duration}min`;
   }
+
+  async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.stopPropagation(); // Empêcher le drag
+
+    // Basculer entre 'todo' et 'done'
+    const newStatus = todo.status === 'done' ? 'todo' : 'done';
+
+    await vaultSync.updateTodoInVault(todo, {
+      status: newStatus
+    });
+  }
 </script>
 
 <div class="tag-group">
@@ -140,12 +177,12 @@
         Sans tag
       {/if}
     </span>
-    <span class="tag-count">({group.todos.length})</span>
+    <span class="tag-count">({visibleTodos.length})</span>
   </div>
 
   {#if !isCollapsed}
     <div class="tag-todos">
-      {#each group.todos as todo (todo.id)}
+      {#each visibleTodos as todo (todo.id)}
         {@const colors = getTodoColorFromTags(todo, $tagColors)}
         <div
           class="todo-item {getPriorityClass(todo.priority)}"
@@ -157,10 +194,16 @@
           role="listitem"
         >
           <div class="todo-main">
+            <input
+              type="checkbox"
+              class="todo-checkbox"
+              checked={todo.status === 'done'}
+              on:click={(e) => handleToggleStatus(e, todo)}
+            />
             {#if todo.priority}
               <span class="priority-badge">{getPriorityIcon(todo.priority)}</span>
             {/if}
-            <span class="todo-text">{todo.text}</span>
+            <span class="todo-text" class:completed={todo.status === 'done'}>{todo.text}</span>
           </div>
           {#if todo.date || todo.time || todo.duration}
             <div class="todo-meta">
@@ -275,6 +318,41 @@
     gap: 6px;
   }
 
+  .todo-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 3px;
+    border: 2px solid var(--text-normal);
+    background-color: var(--background-primary);
+    transition: all 0.15s ease;
+    position: relative;
+  }
+
+  .todo-checkbox:checked {
+    background-color: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+  }
+
+  .todo-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  .todo-checkbox:hover {
+    border-color: var(--interactive-accent);
+    transform: scale(1.1);
+  }
+
   .priority-badge {
     font-size: 0.7em;
     font-weight: 700;
@@ -312,6 +390,12 @@
     flex-grow: 1;
     font-size: 0.9em;
     line-height: 1.4;
+    transition: all 0.2s ease;
+  }
+
+  .todo-text.completed {
+    text-decoration: line-through;
+    opacity: 0.6;
   }
 
   .todo-meta {

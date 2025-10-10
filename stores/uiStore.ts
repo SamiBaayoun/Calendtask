@@ -22,6 +22,11 @@ export const tagColors = writable<Map<string, TodoColor>>(new Map());
 export const searchQuery = writable<string>('');
 
 /**
+ * Cacher les todos terminés
+ */
+export const hideCompleted = writable<boolean>(false);
+
+/**
  * Filtres actifs
  */
 export const activeFilters = writable<{

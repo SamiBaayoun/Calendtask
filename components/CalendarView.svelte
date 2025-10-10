@@ -32,6 +32,10 @@
   // Local state for visual resize feedback (not saved to store until mouseup)
   let resizeVisualState = $state<{ time?: string; duration?: number } | null>(null);
 
+  // Drag & drop states
+  let draggedOverCell = $state<{ dayIndex: number; hour: number } | null>(null);
+  let dropPreview = $state<{ dayIndex: number; hour: number; offsetY: number; todo: Todo } | null>(null);
+
   // Helper function to get the effective time for a todo (considers resize state)
   function getEffectiveTime(todo: Todo): string | undefined {
     // If this todo is being resized and we have a new time in visual state
@@ -96,12 +100,38 @@
   });
 
 
-  function handleDragOver(event: DragEvent) {
+  function handleDragOver(event: DragEvent, dayIndex: number, hour: number) {
     event.preventDefault();
+    draggedOverCell = { dayIndex, hour };
+
+    // Essayer de récupérer le todo pour créer un preview
+    const data = event.dataTransfer?.getData('text/plain');
+    if (data) {
+      try {
+        const dragData = JSON.parse(data);
+        const todo = $todos.find(t => t.id === dragData.id);
+        if (todo) {
+          const offsetY = event.offsetY || 0;
+          dropPreview = { dayIndex, hour, offsetY, todo };
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+  }
+
+  function handleDragLeave() {
+    draggedOverCell = null;
+    dropPreview = null;
   }
 
   async function handleDrop(event: DragEvent, day: Date, hour: number) {
     event.preventDefault();
+
+    // Nettoyer les états de drag
+    draggedOverCell = null;
+    dropPreview = null;
+
     const data = event.dataTransfer?.getData('text/plain');
     if (!data) return;
 
@@ -147,6 +177,28 @@
     } catch (error) {
       console.error('Error handling drop:', error);
     }
+  }
+
+  // Calculer la position du preview pendant le drag
+  function getPreviewPosition(preview: typeof dropPreview): { top: number; height: number; time: string } | null {
+    if (!preview) return null;
+
+    const cellHeight = 40;
+    const offsetY = preview.offsetY;
+    const minutesInCell = Math.round((offsetY / cellHeight) * 60);
+
+    // Snap to 30-minute increments
+    const snappedMinutes = Math.round(minutesInCell / 30) * 30;
+    const finalMinutes = snappedMinutes >= 60 ? 0 : snappedMinutes;
+    const finalHour = snappedMinutes >= 60 ? preview.hour + 1 : preview.hour;
+
+    const top = (finalMinutes / 60) * cellHeight;
+    const duration = preview.todo.duration || 30;
+    const height = (duration / 60) * cellHeight;
+
+    const timeStr = `${String(finalHour).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
+
+    return { top, height, time: timeStr };
   }
 
   function handleMouseDown(event: MouseEvent, todo: Todo, type: 'top' | 'bottom') {
@@ -277,6 +329,17 @@
     await openTodoInEditor(app, todo);
   }
 
+  async function handleToggleStatus(event: MouseEvent, todo: Todo) {
+    event.stopPropagation(); // Empêcher le drag
+
+    // Basculer entre 'todo' et 'done'
+    const newStatus = todo.status === 'done' ? 'todo' : 'done';
+
+    await vaultSync.updateTodoInVault(todo, {
+      status: newStatus
+    });
+  }
+
   function handleEventDragStart(event: DragEvent, todo: Todo) {
     // Ne pas permettre le drag si on est en train de resize
     if (isResizing) {
@@ -291,6 +354,35 @@
         isCalendarEvent: true
       }));
       event.dataTransfer.effectAllowed = 'move';
+
+      // Créer une image fantôme pour les événements du calendrier
+      const target = event.currentTarget as HTMLElement;
+      const ghost = target.cloneNode(true) as HTMLElement;
+
+      // Positionner hors écran mais visible pour le rendu
+      ghost.style.position = 'fixed';
+      ghost.style.top = '-9999px';
+      ghost.style.left = '-9999px';
+      ghost.style.width = '280px';
+      ghost.style.maxWidth = '280px';
+      ghost.style.height = 'auto';
+      ghost.style.opacity = '0.85';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.zIndex = '10000';
+      ghost.style.transform = 'none';
+      ghost.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
+
+      document.body.appendChild(ghost);
+
+      // Utiliser l'élément comme drag image
+      event.dataTransfer.setDragImage(ghost, 20, 20);
+
+      // Nettoyer après un court délai
+      setTimeout(() => {
+        if (ghost.parentNode) {
+          document.body.removeChild(ghost);
+        }
+      }, 50);
     }
   }
 
@@ -428,7 +520,9 @@
         <div
           class="event-cell"
           class:today={dayMeta.isToday}
-          on:dragover={handleDragOver}
+          class:drag-over={draggedOverCell?.dayIndex === dayIndex && draggedOverCell?.hour === hour}
+          on:dragover={(e) => handleDragOver(e, dayIndex, hour)}
+          on:dragleave={handleDragLeave}
           on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
           role="gridcell"
           tabindex="0"
@@ -438,13 +532,22 @@
             {@const colors = getTodoColorFromTags(todo, $tagColors)}
             <div
               class="calendar-event"
+              class:completed={todo.status === 'done'}
               style="top: {position.top}px; height: {position.height}px; background-color: {colors.bg}; color: {colors.text};"
               draggable="true"
               on:dragstart={(e) => handleEventDragStart(e, todo)}
               on:dblclick={() => handleEventDoubleClick(todo)}
               on:contextmenu={(e) => handleEventContextMenu(e, todo)}
             >
-              {todo.text}
+              <div class="event-content">
+                <input
+                  type="checkbox"
+                  class="event-checkbox"
+                  checked={todo.status === 'done'}
+                  on:click={(e) => handleToggleStatus(e, todo)}
+                />
+                <span class="event-text">{todo.text}</span>
+              </div>
               <div
                 class="resize-handle top"
                 draggable="false"
@@ -463,6 +566,23 @@
               ></div>
             </div>
           {/each}
+
+          <!-- Preview du drop pendant le drag -->
+          {#if dropPreview && dropPreview.dayIndex === dayIndex && dropPreview.hour === hour}
+            {@const previewPos = getPreviewPosition(dropPreview)}
+            {#if previewPos}
+              {@const colors = getTodoColorFromTags(dropPreview.todo, $tagColors)}
+              <div
+                class="drop-preview"
+                style="top: {previewPos.top}px; height: {previewPos.height}px; background-color: {colors.bg}; color: {colors.text};"
+              >
+                <div class="preview-content">
+                  <span class="preview-text">{dropPreview.todo.text}</span>
+                  <span class="preview-time">{previewPos.time}</span>
+                </div>
+              </div>
+            {/if}
+          {/if}
         </div>
       {/each}
     {/each}
@@ -497,5 +617,48 @@
 
   .calendar-event:active {
     cursor: grabbing;
+  }
+
+  .calendar-event.completed {
+    opacity: 0.6;
+  }
+
+  .event-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .event-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 2px;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    background-color: transparent;
+    transition: all 0.15s ease;
+  }
+
+  .event-checkbox:checked {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .event-checkbox:hover {
+    transform: scale(1.15);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .event-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-event.completed .event-text {
+    text-decoration: line-through;
   }
 </style>

@@ -13,9 +13,6 @@
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
 
-  // Optimistic UI state for checkbox toggles
-  let togglingTodos = $state<Set<string>>(new Set());
-
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
   }
@@ -59,20 +56,12 @@
     event.preventDefault(); // Prevent default checkbox behavior
     event.stopPropagation(); // Empêcher le drag
 
-    // Add to toggling set for optimistic UI
-    togglingTodos.add(todo.id);
-    togglingTodos = new Set(togglingTodos); // Trigger reactivity
-
     // Basculer entre 'todo' et 'done'
     const newStatus = todo.status === 'done' ? 'todo' : 'done';
 
     await vaultSync.updateTodoInVault(todo, {
       status: newStatus
     });
-
-    // Remove from toggling set after update completes
-    togglingTodos.delete(todo.id);
-    togglingTodos = new Set(togglingTodos); // Trigger reactivity
   }
 
   function handleEventDragStart(event: DragEvent, todo: Todo) {
@@ -169,7 +158,7 @@
         <input
           type="checkbox"
           class="allday-checkbox"
-          checked={togglingTodos.has(todo.id) ? todo.status !== 'done' : todo.status === 'done'}
+          checked={todo.status === 'done'}
           on:click={(e) => handleToggleStatus(e, todo)}
         />
         <span class="allday-text">{todo.text}</span>

@@ -36,8 +36,10 @@
   let draggedOverCell = $state<{ dayIndex: number; hour: number } | null>(null);
   let dropPreview = $state<{ dayIndex: number; hour: number; offsetY: number; todo: Todo } | null>(null);
 
-  // Optimistic UI state for checkbox toggles
-  let togglingTodos = $state<Set<string>>(new Set());
+  // Current time indicator state
+  let currentTimePosition = $state(0);
+  let todayDayIndex = $state(-1);
+  let currentTimeString = $state('');
 
   // Helper function to get the effective time for a todo (considers resize state)
   function getEffectiveTime(todo: Todo): string | undefined {
@@ -94,9 +96,37 @@
     };
   }));
 
+  // Update current time indicator position
+  function updateCurrentTime() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    // Calculate position: (hours * 40px) + (minutes/60 * 40px)
+    currentTimePosition = (hours * 40) + (minutes / 60 * 40);
+
+    // Format current time as HH:MM
+    currentTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+    // Find today's day index in the current week
+    const today = new Date();
+    todayDayIndex = $daysInWeek.findIndex(day =>
+      day.getDate() === today.getDate() &&
+      day.getMonth() === today.getMonth() &&
+      day.getFullYear() === today.getFullYear()
+    );
+  }
+
   onMount(() => {
+    // Initialize current time position
+    updateCurrentTime();
+
+    // Update every minute
+    const timeInterval = setInterval(updateCurrentTime, 60000);
+
     // Cleanup on unmount (mouseup listener is added/removed dynamically)
     return () => {
+      clearInterval(timeInterval);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -336,20 +366,12 @@
     event.preventDefault(); // Prevent default checkbox behavior
     event.stopPropagation(); // Empêcher le drag
 
-    // Add to toggling set for optimistic UI
-    togglingTodos.add(todo.id);
-    togglingTodos = new Set(togglingTodos); // Trigger reactivity
-
     // Basculer entre 'todo' et 'done'
     const newStatus = todo.status === 'done' ? 'todo' : 'done';
 
     await vaultSync.updateTodoInVault(todo, {
       status: newStatus
     });
-
-    // Remove from toggling set after update completes
-    togglingTodos.delete(todo.id);
-    togglingTodos = new Set(togglingTodos); // Trigger reactivity
   }
 
   function handleEventDragStart(event: DragEvent, todo: Todo) {
@@ -525,6 +547,18 @@
       <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
     {/each}
 
+    <!-- Current time indicator (only show if today is in the current week) -->
+    {#if todayDayIndex >= 0}
+      <div class="current-time-wrapper" style="top: {currentTimePosition}px;">
+        <!-- Ligne fine qui traverse toute la semaine -->
+        <div class="time-line-full">
+          <span class="current-time-label">{currentTimeString}</span>
+        </div>
+        <!-- Ligne épaisse uniquement sur today -->
+        <div class="time-line-today" style="grid-column: {todayDayIndex + 2};"></div>
+      </div>
+    {/if}
+
     <!-- Grille horaire -->
     {#each hours as hour}
       <div class="time-cell">{hour}:00</div>
@@ -555,7 +589,7 @@
                 <input
                   type="checkbox"
                   class="event-checkbox"
-                  checked={togglingTodos.has(todo.id) ? todo.status !== 'done' : todo.status === 'done'}
+                  checked={todo.status === 'done'}
                   on:click={(e) => handleToggleStatus(e, todo)}
                 />
                 <span class="event-text">{todo.text}</span>
@@ -645,8 +679,8 @@
   .event-checkbox {
     appearance: none;
     -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
     flex-shrink: 0;
     border-radius: 3px;
@@ -668,13 +702,13 @@
     left: 50%;
     transform: translate(-50%, -50%);
     color: white;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: bold;
   }
 
   .event-checkbox:hover {
-    transform: scale(1.1);
     border-color: var(--interactive-accent);
+    transform: scale(1.1);
   }
 
   .event-text {
@@ -686,5 +720,63 @@
 
   .calendar-event.completed .event-text {
     text-decoration: line-through;
+  }
+
+  /* Current time indicator */
+  .current-time-wrapper {
+    grid-column: 1 / -1;
+    grid-row: 3 / -1;
+    position: absolute;
+    width: 100%;
+    height: 0;
+    pointer-events: none;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    gap: 0;
+  }
+
+  .time-line-full {
+    grid-column: 2 / 9; /* Du début de Monday (col 2) à la fin de Sunday (col 9) */
+    grid-row: 1;
+    height: 2px;
+    background-color: rgba(255, 0, 0, 0.6);
+    position: relative;
+  }
+
+  .current-time-label {
+    position: absolute;
+    left: -50px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 0, 0, 0.9);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .time-line-today {
+    grid-row: 1;
+    height: 2px;
+    background-color: rgba(255, 0, 0, 0.9);
+    box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
+    position: relative;
+  }
+
+  .time-line-today::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: rgba(255, 0, 0, 0.9);
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
   }
 </style>

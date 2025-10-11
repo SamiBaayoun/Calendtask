@@ -102,12 +102,9 @@
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-    // Mesurer l'offset de la première cellule horaire (début de 0:00)
-    const firstTimeCell = document.querySelector('.time-cell');
-    const offset = firstTimeCell ? firstTimeCell.offsetTop : 0;
-
-    // Calculate position: (hours * 40px) + (minutes/60 * 40px) + offset des headers
-    currentTimePosition = (hours * 40) + (minutes / 60 * 40) + offset;
+    // Calculate position: (hours * 40px) + (minutes/60 * 40px)
+    // No offset needed since time indicator is in the same scrollable container
+    currentTimePosition = (hours * 40) + (minutes / 60 * 40);
 
     // Format current time as HH:MM
     currentTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
@@ -535,107 +532,113 @@
     </h2>
   </div>
 
-  <div class="week-view-grid">
-    <!-- En-tête avec les jours de la semaine -->
-    <div class="time-column-header"></div>
-    {#each daysMetadata as dayMeta (dayMeta.timestamp)}
-      <div class="day-header" class:today={dayMeta.isToday}>
-        <span class="day-name">{dayMeta.weekday}</span>
-        <span class="day-number">{dayMeta.dayNumber}</span>
-      </div>
-    {/each}
-
-    <!-- Zone All-Day -->
-    <div class="time-column-all-day">Toute la journée</div>
-    {#each daysMetadata as dayMeta (dayMeta.timestamp)}
-      <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
-    {/each}
-
-    <!-- Current time indicator (only show if today is in the current week) -->
-    {#if todayDayIndex >= 0}
-      <div class="current-time-wrapper" style="top: {currentTimePosition}px;">
-        <!-- Ligne fine qui traverse toute la semaine -->
-        <div class="time-line-full">
-          <span class="current-time-label">{currentTimeString}</span>
-        </div>
-        <!-- Ligne épaisse uniquement sur today -->
-        <div class="time-line-today" style="grid-column: {todayDayIndex + 2};"></div>
-      </div>
-    {/if}
-
-    <!-- Grille horaire -->
-    {#each hours as hour}
-      <div class="time-cell">{hour}:00</div>
-      {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
-        <div
-          class="event-cell"
-          class:today={dayMeta.isToday}
-          class:drag-over={draggedOverCell?.dayIndex === dayIndex && draggedOverCell?.hour === hour}
-          on:dragover={(e) => handleDragOver(e, dayIndex, hour)}
-          on:dragleave={handleDragLeave}
-          on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
-          role="gridcell"
-          tabindex="0"
-        >
-          {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
-            {@const position = getEventPosition(todo)}
-            {@const colors = getTodoColorFromTags(todo, $tagColors)}
-            <div
-              class="calendar-event"
-              class:completed={todo.status === 'done'}
-              style="top: {position.top}px; height: {position.height}px; background-color: {colors.bg}; color: {colors.text};"
-              draggable="true"
-              on:dragstart={(e) => handleEventDragStart(e, todo)}
-              on:dblclick={() => handleEventDoubleClick(todo)}
-              on:contextmenu={(e) => handleEventContextMenu(e, todo)}
-            >
-              <div class="event-content">
-                <input
-                  type="checkbox"
-                  class="event-checkbox"
-                  checked={todo.status === 'done'}
-                  on:click={(e) => handleToggleStatus(e, todo)}
-                />
-                <span class="event-text">{todo.text}</span>
-              </div>
-              <div
-                class="resize-handle top"
-                draggable="false"
-                on:mousedown={(e) => handleMouseDown(e, todo, 'top')}
-                role="slider"
-                aria-label="Resize top"
-                tabindex="0"
-              ></div>
-              <div
-                class="resize-handle bottom"
-                draggable="false"
-                on:mousedown={(e) => handleMouseDown(e, todo, 'bottom')}
-                role="slider"
-                aria-label="Resize bottom"
-                tabindex="0"
-              ></div>
-            </div>
-          {/each}
-
-          <!-- Preview du drop pendant le drag -->
-          {#if dropPreview && dropPreview.dayIndex === dayIndex && dropPreview.hour === hour}
-            {@const previewPos = getPreviewPosition(dropPreview)}
-            {#if previewPos}
-              {@const colors = getTodoColorFromTags(dropPreview.todo, $tagColors)}
-              <div
-                class="drop-preview"
-                style="top: {previewPos.top}px; height: {previewPos.height}px; background-color: {colors.bg}; color: {colors.text};"
-              >
-                <div class="preview-content">
-                  <span class="preview-text">{dropPreview.todo.text}</span>
-                  <span class="preview-time">{previewPos.time}</span>
-                </div>
-              </div>
-            {/if}
-          {/if}
+  <div class="calendar-grid-container">
+    <!-- Partie fixe: En-têtes et zone All-Day -->
+    <div class="calendar-grid-header">
+      <!-- En-tête avec les jours de la semaine -->
+      <div class="time-column-header"></div>
+      {#each daysMetadata as dayMeta (dayMeta.timestamp)}
+        <div class="day-header" class:today={dayMeta.isToday}>
+          <span class="day-name">{dayMeta.weekday}</span>
+          <span class="day-number">{dayMeta.dayNumber}</span>
         </div>
       {/each}
-    {/each}
+
+      <!-- Zone All-Day -->
+      <div class="time-column-all-day">Toute la journée</div>
+      {#each daysMetadata as dayMeta (dayMeta.timestamp)}
+        <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
+      {/each}
+    </div>
+
+    <!-- Partie scrollable: Grille horaire -->
+    <div class="calendar-grid-body">
+      <!-- Current time indicator (only show if today is in the current week) -->
+      {#if todayDayIndex >= 0}
+        <div class="current-time-wrapper" style="top: {currentTimePosition}px;">
+          <!-- Ligne fine qui traverse toute la semaine -->
+          <div class="time-line-full">
+            <span class="current-time-label">{currentTimeString}</span>
+          </div>
+          <!-- Ligne épaisse uniquement sur today -->
+          <div class="time-line-today" style="grid-column: {todayDayIndex + 2};"></div>
+        </div>
+      {/if}
+
+      <!-- Grille horaire -->
+      {#each hours as hour}
+        <div class="time-cell">{hour}:00</div>
+        {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
+          <div
+            class="event-cell"
+            class:today={dayMeta.isToday}
+            class:drag-over={draggedOverCell?.dayIndex === dayIndex && draggedOverCell?.hour === hour}
+            on:dragover={(e) => handleDragOver(e, dayIndex, hour)}
+            on:dragleave={handleDragLeave}
+            on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
+            role="gridcell"
+            tabindex="0"
+          >
+            {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
+              {@const position = getEventPosition(todo)}
+              {@const colors = getTodoColorFromTags(todo, $tagColors)}
+              <div
+                class="calendar-event"
+                class:completed={todo.status === 'done'}
+                style="top: {position.top}px; height: {position.height}px; background-color: {colors.bg}; color: {colors.text};"
+                draggable="true"
+                on:dragstart={(e) => handleEventDragStart(e, todo)}
+                on:dblclick={() => handleEventDoubleClick(todo)}
+                on:contextmenu={(e) => handleEventContextMenu(e, todo)}
+              >
+                <div class="event-content">
+                  <input
+                    type="checkbox"
+                    class="event-checkbox"
+                    checked={todo.status === 'done'}
+                    on:click={(e) => handleToggleStatus(e, todo)}
+                  />
+                  <span class="event-text">{todo.text}</span>
+                </div>
+                <div
+                  class="resize-handle top"
+                  draggable="false"
+                  on:mousedown={(e) => handleMouseDown(e, todo, 'top')}
+                  role="slider"
+                  aria-label="Resize top"
+                  tabindex="0"
+                ></div>
+                <div
+                  class="resize-handle bottom"
+                  draggable="false"
+                  on:mousedown={(e) => handleMouseDown(e, todo, 'bottom')}
+                  role="slider"
+                  aria-label="Resize bottom"
+                  tabindex="0"
+                ></div>
+              </div>
+            {/each}
+
+            <!-- Preview du drop pendant le drag -->
+            {#if dropPreview && dropPreview.dayIndex === dayIndex && dropPreview.hour === hour}
+              {@const previewPos = getPreviewPosition(dropPreview)}
+              {#if previewPos}
+                {@const colors = getTodoColorFromTags(dropPreview.todo, $tagColors)}
+                <div
+                  class="drop-preview"
+                  style="top: {previewPos.top}px; height: {previewPos.height}px; background-color: {colors.bg}; color: {colors.text};"
+                >
+                  <div class="preview-content">
+                    <span class="preview-text">{dropPreview.todo.text}</span>
+                    <span class="preview-time">{previewPos.time}</span>
+                  </div>
+                </div>
+              {/if}
+            {/if}
+          </div>
+        {/each}
+      {/each}
+    </div>
   </div>
 </div>
 
@@ -726,10 +729,41 @@
     text-decoration: line-through;
   }
 
+  /* Calendar grid container with fixed header and scrollable body */
+  .calendar-grid-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    border: 1px solid rgba(var(--text-muted-rgb), 0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .calendar-grid-header {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    grid-template-rows: auto auto;
+    gap: 0;
+    background-color: var(--background-secondary);
+  }
+
+  .calendar-grid-body {
+    flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    grid-auto-rows: minmax(40px, auto);
+    gap: 0;
+    position: relative;
+    contain: layout style paint;
+  }
+
   /* Current time indicator */
   .current-time-wrapper {
     grid-column: 1 / -1;
-    grid-row: 3 / -1;
     position: absolute;
     width: 100%;
     height: 0;

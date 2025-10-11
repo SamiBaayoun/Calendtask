@@ -102,8 +102,12 @@
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-    // Calculate position: (hours * 40px) + (minutes/60 * 40px)
-    currentTimePosition = (hours * 40) + (minutes / 60 * 40);
+    // Mesurer l'offset de la première cellule horaire (début de 0:00)
+    const firstTimeCell = document.querySelector('.time-cell');
+    const offset = firstTimeCell ? firstTimeCell.offsetTop : 0;
+
+    // Calculate position: (hours * 40px) + (minutes/60 * 40px) + offset des headers
+    currentTimePosition = (hours * 40) + (minutes / 60 * 40) + offset;
 
     // Format current time as HH:MM
     currentTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;

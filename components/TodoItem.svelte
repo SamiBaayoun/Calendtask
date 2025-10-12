@@ -123,7 +123,6 @@
   style="{itemStyle} cursor: {currentCursor};"
   draggable="true"
   on:dragstart={(e) => onDragStart?.(e, todo)}
-  on:dblclick={() => onDoubleClick?.(todo)}
   on:contextmenu={(e) => onContextMenu?.(e, todo)}
   on:mousemove={handleMouseMove}
   on:mousedown={handleMouseDown}

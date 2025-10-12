@@ -184,9 +184,9 @@
 
 /* Highlight pendant le drag over */
 .event-cell.drag-over {
-  background-color: rgba(var(--interactive-accent-rgb), 0.12) !important;
-  border: 2px solid rgba(var(--interactive-accent-rgb), 0.4);
-  box-shadow: inset 0 0 8px rgba(var(--interactive-accent-rgb), 0.15);
+  background-color: rgba(128, 128, 128, 0.15) !important;
+  border: 2px solid rgba(128, 128, 128, 0.3);
+  box-shadow: inset 0 0 8px rgba(128, 128, 128, 0.1);
 }
 
 /* Preview du todo pendant le drag */

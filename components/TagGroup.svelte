@@ -79,12 +79,21 @@
       const target = event.currentTarget as HTMLElement;
       const ghost = target.cloneNode(true) as HTMLElement;
 
+      // Calculer la largeur d'une cellule du calendrier
+      // La grille calendrier = (largeur totale - 60px colonne temps) / 7 jours
+      const calendarView = document.querySelector('.calendtask-calendar-view');
+      let calendarCellWidth = 280; // Fallback
+      if (calendarView) {
+        const viewWidth = calendarView.clientWidth;
+        calendarCellWidth = (viewWidth - 60) / 7; // 60px = largeur colonne temps
+      }
+
       // Positionner hors écran mais visible pour le rendu
       ghost.style.position = 'fixed';
       ghost.style.top = '-9999px';
       ghost.style.left = '-9999px';
-      ghost.style.width = '280px';
-      ghost.style.maxWidth = '280px';
+      ghost.style.width = `${calendarCellWidth}px`;
+      ghost.style.maxWidth = `${calendarCellWidth}px`;
       ghost.style.opacity = '0.85';
       ghost.style.pointerEvents = 'none';
       ghost.style.zIndex = '10000';

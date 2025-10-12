@@ -1,10 +1,13 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { App, Menu } from 'obsidian';
+  import TodoItem from './TodoItem.svelte';
   import type { Todo } from '../types';
   import type { VaultSync } from '../services/VaultSync';
   import { todos as todosStore } from '../stores/todoStore';
+  import { tagColors } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
+  import { getTodoColorFromTags } from '../utils/colors';
 
   export let day: Date;
   export let todos: Todo[];
@@ -147,22 +150,17 @@
     <div class="all-day-placeholder">All day</div>
   {:else}
     {#each todos as todo (todo.id)}
-      <div
-        class="all-day-event"
-        class:completed={todo.status === 'done'}
-        draggable="true"
-        on:dragstart={(e) => handleEventDragStart(e, todo)}
-        on:dblclick={() => handleEventDoubleClick(todo)}
-        on:contextmenu={(e) => handleEventContextMenu(e, todo)}
-      >
-        <input
-          type="checkbox"
-          class="allday-checkbox"
-          checked={todo.status === 'done'}
-          on:click={(e) => handleToggleStatus(e, todo)}
-        />
-        <span class="allday-text">{todo.text}</span>
-      </div>
+      {@const colors = getTodoColorFromTags(todo, $tagColors)}
+      <TodoItem
+        {todo}
+        variant="allday"
+        {colors}
+        showOpenArrow={true}
+        onToggleStatus={handleToggleStatus}
+        onDoubleClick={handleEventDoubleClick}
+        onDragStart={handleEventDragStart}
+        onContextMenu={handleEventContextMenu}
+      />
     {/each}
   {/if}
 </div>
@@ -184,74 +182,5 @@
     text-align: center;
     padding: 8px;
     font-style: italic;
-  }
-
-  .all-day-event {
-    background-color: var(--interactive-accent);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 3px;
-    font-size: 0.8em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .all-day-event:hover {
-    opacity: 0.9;
-  }
-
-  .all-day-event.completed {
-    opacity: 0.6;
-  }
-
-  .allday-checkbox {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    flex-shrink: 0;
-    border-radius: 3px;
-    border: 1px solid var(--text-normal);
-    background-color: var(--background-primary);
-    transition: all 0.15s ease;
-    position: relative;
-  }
-
-  .allday-checkbox:checked {
-    background-color: var(--interactive-accent);
-    border-color: var(--interactive-accent);
-  }
-
-  .allday-checkbox:checked::after {
-    content: '✓';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 11px;
-    font-weight: bold;
-  }
-
-  .allday-checkbox:hover {
-    transform: scale(1.1);
-    border-color: var(--interactive-accent);
-  }
-
-  .allday-text {
-    flex-grow: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .all-day-event.completed .allday-text {
-    text-decoration: line-through;
   }
 </style>

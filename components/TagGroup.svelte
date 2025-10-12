@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { App, Menu } from 'obsidian';
+  import TodoItem from './TodoItem.svelte';
   import type { TagGroup as TagGroupType, Todo, TodoColor } from '../types';
   import type { VaultSync } from '../services/VaultSync';
   import { collapsedTags, toggleTagCollapsed, tagColors, setTagColor } from '../stores/uiStore';
@@ -104,16 +105,6 @@
     }
   }
 
-  function getPriorityIcon(priority?: string): string {
-    switch (priority) {
-      case 'critical': return '[C]';
-      case 'high': return '[H]';
-      case 'medium': return '[M]';
-      case 'low': return '[L]';
-      default: return '';
-    }
-  }
-
   function getPriorityClass(priority?: string): string {
     switch (priority) {
       case 'critical': return 'priority-critical';
@@ -122,37 +113,6 @@
       case 'low': return 'priority-low';
       default: return '';
     }
-  }
-
-  function formatDate(todo: Todo): string {
-    if (!todo.date) return '';
-    const date = new Date(todo.date);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // Check if today
-    if (date.toDateString() === today.toDateString()) {
-      return "Today";
-    }
-
-    // Check if tomorrow
-    if (date.toDateString() === tomorrow.toDateString()) {
-      return "Tomorrow";
-    }
-
-    // Otherwise show date
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${date.getDate()} ${months[date.getMonth()]}`;
-  }
-
-  function formatDuration(duration: number): string {
-    if (duration >= 60) {
-      const hours = Math.floor(duration / 60);
-      const minutes = duration % 60;
-      return minutes > 0 ? `${hours}h${minutes}` : `${hours}h`;
-    }
-    return `${duration}min`;
   }
 
   async function handleToggleStatus(event: MouseEvent, todo: Todo) {
@@ -185,41 +145,19 @@
     <div class="tag-todos">
       {#each visibleTodos as todo (todo.id)}
         {@const colors = getTodoColorFromTags(todo, $tagColors)}
-        <div
-          class="todo-item {getPriorityClass(todo.priority)}"
-          style="background-color: {colors.bg}; color: {colors.text};"
-          draggable="true"
-          on:dragstart={(e) => handleDragStart(e, todo)}
-          on:dblclick={() => handleDoubleClick(todo)}
-          on:contextmenu={(e) => handleContextMenu(e, todo)}
-          role="listitem"
-        >
-          <div class="todo-main">
-            <input
-              type="checkbox"
-              class="todo-checkbox"
-              checked={todo.status === 'done'}
-              on:click={(e) => handleToggleStatus(e, todo)}
-            />
-            {#if todo.priority}
-              <span class="priority-badge">{getPriorityIcon(todo.priority)}</span>
-            {/if}
-            <span class="todo-text" class:completed={todo.status === 'done'}>{todo.text}</span>
-          </div>
-          {#if todo.date || todo.time || todo.duration}
-            <div class="todo-meta">
-              {#if todo.date}
-                <span class="meta-badge meta-date">📅 {formatDate(todo)}</span>
-              {/if}
-              {#if todo.time}
-                <span class="meta-badge meta-time">🕐 {todo.time}</span>
-              {/if}
-              {#if todo.duration}
-                <span class="meta-badge meta-duration">⏱ {formatDuration(todo.duration)}</span>
-              {/if}
-            </div>
-          {/if}
-        </div>
+        <TodoItem
+          {todo}
+          variant="sidebar"
+          {colors}
+          priorityClass={getPriorityClass(todo.priority)}
+          showPriority={!!todo.priority}
+          showMeta={true}
+          showOpenArrow={true}
+          onToggleStatus={handleToggleStatus}
+          onDoubleClick={handleDoubleClick}
+          onDragStart={handleDragStart}
+          onContextMenu={handleContextMenu}
+        />
       {/each}
     </div>
   {/if}
@@ -273,157 +211,5 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .todo-item {
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-left: 3px solid rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    padding: 10px 12px;
-    cursor: grab;
-    transition: all 0.15s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  }
-
-  .todo-item:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-    transform: translateY(-1px);
-    filter: brightness(0.95);
-  }
-
-  .todo-item:active {
-    cursor: grabbing;
-    transform: translateY(0);
-  }
-
-  /* Priority colors */
-  .todo-item.priority-critical {
-    border-left-color: #ff4444;
-  }
-
-  .todo-item.priority-high {
-    border-left-color: #ff9800;
-  }
-
-  .todo-item.priority-medium {
-    border-left-color: #ffeb3b;
-  }
-
-  .todo-item.priority-low {
-    border-left-color: #4caf50;
-  }
-
-  .todo-main {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .todo-checkbox {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    flex-shrink: 0;
-    border-radius: 3px;
-    border: 1px solid var(--text-normal);
-    background-color: var(--background-primary);
-    transition: all 0.15s ease;
-    position: relative;
-  }
-
-  .todo-checkbox:checked {
-    background-color: var(--interactive-accent);
-    border-color: var(--interactive-accent);
-  }
-
-  .todo-checkbox:checked::after {
-    content: '✓';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-  }
-
-  .todo-checkbox:hover {
-    border-color: var(--interactive-accent);
-    transform: scale(1.1);
-  }
-
-  .priority-badge {
-    font-size: 0.7em;
-    font-weight: 700;
-    padding: 3px 6px;
-    border-radius: 4px;
-    background-color: var(--background-modifier-border);
-    letter-spacing: 0.3px;
-  }
-
-  .priority-critical .priority-badge {
-    background-color: #ff4444;
-    color: white;
-    box-shadow: 0 1px 3px rgba(255, 68, 68, 0.3);
-  }
-
-  .priority-high .priority-badge {
-    background-color: #ff9800;
-    color: white;
-    box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
-  }
-
-  .priority-medium .priority-badge {
-    background-color: #ffeb3b;
-    color: #333;
-    box-shadow: 0 1px 3px rgba(255, 235, 59, 0.3);
-  }
-
-  .priority-low .priority-badge {
-    background-color: #4caf50;
-    color: white;
-    box-shadow: 0 1px 3px rgba(76, 175, 80, 0.3);
-  }
-
-  .todo-text {
-    flex-grow: 1;
-    font-size: 0.9em;
-    line-height: 1.4;
-    transition: all 0.2s ease;
-  }
-
-  .todo-text.completed {
-    text-decoration: line-through;
-    opacity: 0.6;
-  }
-
-  .todo-meta {
-    margin-top: 6px;
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
-  .meta-badge {
-    font-size: 0.7em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-    background-color: rgba(0, 0, 0, 0.1);
-    white-space: nowrap;
-  }
-
-  .meta-date {
-    background-color: rgba(59, 130, 246, 0.15);
-  }
-
-  .meta-time {
-    background-color: rgba(168, 85, 247, 0.15);
-  }
-
-  .meta-duration {
-    background-color: rgba(34, 197, 94, 0.15);
   }
 </style>

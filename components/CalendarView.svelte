@@ -2,6 +2,7 @@
   import { onMount, getContext } from 'svelte';
   import { App, Menu } from 'obsidian';
   import AllDayZone from './AllDayZone.svelte';
+  import TodoItem from './TodoItem.svelte';
   import {
     currentWeekStart,
     daysInWeek,
@@ -102,9 +103,9 @@
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-    // Calculate position: (hours * 40px) + (minutes/60 * 40px)
+    // Calculate position: (hours * 60px) + (minutes/60 * 60px)
     // No offset needed since time indicator is in the same scrollable container
-    currentTimePosition = (hours * 40) + (minutes / 60 * 40);
+    currentTimePosition = (hours * 60) + (minutes / 60 * 60);
 
     // Format current time as HH:MM
     currentTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
@@ -178,7 +179,7 @@
       if (!todo) return;
 
       // Calculer les minutes depuis offsetY dans la cellule
-      const cellHeight = 40; // 40px par heure
+      const cellHeight = 60; // 60px par heure
       const offsetY = event.offsetY || 0;
       const minutesInCell = Math.round((offsetY / cellHeight) * 60);
 
@@ -217,7 +218,7 @@
   function getPreviewPosition(preview: typeof dropPreview): { top: number; height: number; time: string } | null {
     if (!preview) return null;
 
-    const cellHeight = 40;
+    const cellHeight = 60;
     const offsetY = preview.offsetY;
     const minutesInCell = Math.round((offsetY / cellHeight) * 60);
 
@@ -262,7 +263,7 @@
     if (!isResizing || !resizeEventId || !resizeTodo || !initialTime) return;
 
     const deltaY = event.clientY - initialY;
-    const cellHeight = 40; // 40px par heure
+    const cellHeight = 60; // 60px par heure
     // Ne pas arrondir le delta, garder la précision
     const deltaMinutes = (deltaY / cellHeight) * 60;
 
@@ -496,25 +497,25 @@
     // Use visual state if this event is being resized
     if (isResizing && resizeEventId === todo.id && resizeVisualState) {
       const duration = resizeVisualState.duration ?? todo.duration ?? 30;
-      const height = (duration / 60) * 40;
+      const height = (duration / 60) * 60;
 
       // Use time from visual state if available (for top handle resize)
       const time = resizeVisualState.time || todo.time;
       if (!time) return { top: 0, height };
 
       const [hours, minutes] = time.split(':').map(Number);
-      const top = (minutes / 60) * 40;
+      const top = (minutes / 60) * 60;
 
       return { top, height };
     }
 
     // Normal rendering
-    if (!todo.time) return { top: 0, height: 40 };
+    if (!todo.time) return { top: 0, height: 60 };
 
     const [hours, minutes] = todo.time.split(':').map(Number);
-    const top = (minutes / 60) * 40;
+    const top = (minutes / 60) * 60;
     const duration = todo.duration || 30;
-    const height = (duration / 60) * 40;
+    const height = (duration / 60) * 60;
 
     return { top, height };
   }
@@ -582,41 +583,19 @@
             {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
               {@const position = getEventPosition(todo)}
               {@const colors = getTodoColorFromTags(todo, $tagColors)}
-              <div
-                class="calendar-event"
-                class:completed={todo.status === 'done'}
-                style="top: {position.top}px; height: {position.height}px; background-color: {colors.bg}; color: {colors.text};"
-                draggable="true"
-                on:dragstart={(e) => handleEventDragStart(e, todo)}
-                on:dblclick={() => handleEventDoubleClick(todo)}
-                on:contextmenu={(e) => handleEventContextMenu(e, todo)}
-              >
-                <div class="event-content">
-                  <input
-                    type="checkbox"
-                    class="event-checkbox"
-                    checked={todo.status === 'done'}
-                    on:click={(e) => handleToggleStatus(e, todo)}
-                  />
-                  <span class="event-text">{todo.text}</span>
-                </div>
-                <div
-                  class="resize-handle top"
-                  draggable="false"
-                  on:mousedown={(e) => handleMouseDown(e, todo, 'top')}
-                  role="slider"
-                  aria-label="Resize top"
-                  tabindex="0"
-                ></div>
-                <div
-                  class="resize-handle bottom"
-                  draggable="false"
-                  on:mousedown={(e) => handleMouseDown(e, todo, 'bottom')}
-                  role="slider"
-                  aria-label="Resize bottom"
-                  tabindex="0"
-                ></div>
-              </div>
+              <TodoItem
+                {todo}
+                variant="calendar"
+                {colors}
+                {position}
+                showOpenArrow={true}
+                showResizeHandles={true}
+                onToggleStatus={handleToggleStatus}
+                onDoubleClick={handleEventDoubleClick}
+                onDragStart={handleEventDragStart}
+                onContextMenu={handleEventContextMenu}
+                onResizeMouseDown={handleMouseDown}
+              />
             {/each}
 
             <!-- Preview du drop pendant le drag -->
@@ -643,92 +622,6 @@
 </div>
 
 <style>
-  .calendar-event {
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 0.8em;
-    font-weight: 500;
-    margin: 2px;
-    position: absolute;
-    width: calc(100% - 4px);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    z-index: 1;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-    cursor: grab;
-    transition: all 0.15s ease;
-    border-left: 3px solid rgba(0, 0, 0, 0.15);
-  }
-
-  .calendar-event:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    z-index: 2;
-    filter: brightness(0.95);
-  }
-
-  .calendar-event:active {
-    cursor: grabbing;
-  }
-
-  .calendar-event.completed {
-    opacity: 0.6;
-  }
-
-  .event-content {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    overflow: hidden;
-  }
-
-  .event-checkbox {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    flex-shrink: 0;
-    border-radius: 3px;
-    border: 1px solid var(--text-normal);
-    background-color: var(--background-primary);
-    transition: all 0.15s ease;
-    position: relative;
-  }
-
-  .event-checkbox:checked {
-    background-color: var(--interactive-accent);
-    border-color: var(--interactive-accent);
-  }
-
-  .event-checkbox:checked::after {
-    content: '✓';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-  }
-
-  .event-checkbox:hover {
-    border-color: var(--interactive-accent);
-    transform: scale(1.1);
-  }
-
-  .event-text {
-    flex-grow: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .calendar-event.completed .event-text {
-    text-decoration: line-through;
-  }
-
   /* Calendar grid container with fixed header and scrollable body */
   .calendar-grid-container {
     display: flex;
@@ -755,7 +648,7 @@
     overflow-x: hidden;
     display: grid;
     grid-template-columns: 60px repeat(7, 1fr);
-    grid-auto-rows: minmax(40px, auto);
+    grid-auto-rows: minmax(60px, auto);
     gap: 0;
     position: relative;
     contain: layout style paint;

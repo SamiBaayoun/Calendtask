@@ -155,6 +155,12 @@ export class VaultSync {
    * Update a todo in the vault (modify the markdown file)
    */
   async updateTodoInVault(todo: Todo, updates: Partial<Todo>): Promise<void> {
+    // Ignore calendar-only todos (they don't have files)
+    if (todo.isCalendarOnly || !todo.filePath) {
+      console.warn('Cannot update calendar-only todo in vault');
+      return;
+    }
+
     const file = this.app.vault.getAbstractFileByPath(todo.filePath);
     if (!(file instanceof TFile)) {
       console.error(`File not found: ${todo.filePath}`);

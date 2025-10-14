@@ -15,10 +15,10 @@
   const vaultSync = getContext<VaultSync>('vaultSync');
   let isCollapsed = false;
 
-  // Filtrer les todos terminés si hideCompletedTodos est activé
-  $: visibleTodos = hideCompletedTodos
+  // Filtrer les todos terminés si hideCompletedTodos est activé et trier alphabétiquement
+  $: visibleTodos = (hideCompletedTodos
     ? group.todos.filter(todo => todo.status !== 'done')
-    : group.todos;
+    : group.todos).sort((a, b) => a.text.localeCompare(b.text, undefined, { sensitivity: 'base' }));
 
   // S'abonner aux tags collapsed
   collapsedTags.subscribe(tags => {

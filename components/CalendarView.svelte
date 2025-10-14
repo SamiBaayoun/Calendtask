@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, getContext } from 'svelte';
+  import { onMount, getContext, mount, unmount } from 'svelte';
   import { App, Menu } from 'obsidian';
   import AllDayZone from './AllDayZone.svelte';
   import TodoItem from './TodoItem.svelte';
+  import CreateTodoModal from './CreateTodoModal.svelte';
   import {
     currentWeekStart,
     daysInWeek,
@@ -10,15 +11,18 @@
     goToNextWeek,
     goToToday
   } from '../stores/calendarStore';
-  import { todos } from '../stores/todoStore';
+  import { todos, calendarOnlyTodos } from '../stores/todoStore';
   import { tagColors, setTagColor } from '../stores/uiStore';
   import type { Todo, TodoColor } from '../types';
   import type { VaultSync } from '../services/VaultSync';
+  import type CalendTaskPlugin from '../main';
   import { openTodoInEditor } from '../utils/editorUtils';
   import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { CalendarTodoService } from '../services/CalendarTodoService';
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
+  const plugin = getContext<CalendTaskPlugin>('plugin');
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   // Événements pour le resize et drag
@@ -36,6 +40,12 @@
   // Drag & drop states
   let draggedOverCell = $state<{ dayIndex: number; hour: number } | null>(null);
   let dropPreview = $state<{ dayIndex: number; hour: number; offsetY: number; todo: Todo } | null>(null);
+
+  // Modal state
+  let showCreateModal = $state(false);
+  let modalDate = $state('');
+  let modalTime = $state('');
+  let modalContainer: HTMLElement | null = null;
 
   // Current time indicator state
   let currentTimePosition = $state(0);
@@ -178,15 +188,9 @@
       const todo = $todos.find(t => t.id === todoId);
       if (!todo) return;
 
-      // Calculer les minutes depuis offsetY dans la cellule
-      const cellHeight = 60; // 60px par heure
-      const offsetY = event.offsetY || 0;
-      const minutesInCell = Math.round((offsetY / cellHeight) * 60);
-
-      // Snap to 30-minute increments
-      const snappedMinutes = Math.round(minutesInCell / 30) * 30;
-      const finalMinutes = snappedMinutes >= 60 ? 0 : snappedMinutes;
-      const finalHour = snappedMinutes >= 60 ? hour + 1 : hour;
+      // Toujours commencer au début de l'heure
+      const finalMinutes = 0;
+      const finalHour = hour;
 
       // Vérifier que l'événement ne dépasse pas 23:59
       const duration = todo.duration || 30;
@@ -203,11 +207,29 @@
       const dateStr = formatDate(day);
       const timeStr = `${String(finalHour).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
 
-      // Mettre à jour le todo dans le vault
-      await vaultSync.updateTodoInVault(todo, {
-        date: dateStr,
-        time: timeStr
-      });
+      // Check if it's a calendar-only todo
+      const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
+
+      if (isCalendarOnly) {
+        // Update calendar-only todo in JSON
+        calendarOnlyTodos.update(currentTodos => {
+          return currentTodos.map(t =>
+            t.id === todo.id ? { ...t, date: dateStr, time: timeStr } : t
+          );
+        });
+
+        // Save to plugin data
+        await plugin.updateCalendarOnlyTodo(todo.id, {
+          date: dateStr,
+          time: timeStr
+        });
+      } else {
+        // Update vault todo in file
+        await vaultSync.updateTodoInVault(todo, {
+          date: dateStr,
+          time: timeStr
+        });
+      }
 
     } catch (error) {
       console.error('Error handling drop:', error);
@@ -218,16 +240,12 @@
   function getPreviewPosition(preview: typeof dropPreview): { top: number; height: number; time: string } | null {
     if (!preview) return null;
 
+    // Toujours commencer au début de l'heure
     const cellHeight = 60;
-    const offsetY = preview.offsetY;
-    const minutesInCell = Math.round((offsetY / cellHeight) * 60);
+    const finalMinutes = 0;
+    const finalHour = preview.hour;
 
-    // Snap to 30-minute increments
-    const snappedMinutes = Math.round(minutesInCell / 30) * 30;
-    const finalMinutes = snappedMinutes >= 60 ? 0 : snappedMinutes;
-    const finalHour = snappedMinutes >= 60 ? preview.hour + 1 : preview.hour;
-
-    const top = (finalMinutes / 60) * cellHeight;
+    const top = 0; // Toujours au début de la cellule
     const duration = preview.todo.duration || 30;
     const height = (duration / 60) * cellHeight;
 
@@ -335,25 +353,32 @@
       }
 
       if (Object.keys(updates).length > 0) {
-        // Optimistic update: Update store immediately to prevent flash
-        todos.update(currentTodos => {
-          return currentTodos.map(t =>
-            t.id === resizeTodo.id ? { ...t, ...updates } : t
-          );
-        });
+        const isCalendarOnly = CalendarTodoService.isCalendarOnly(resizeTodo);
 
-        // Then save to vault (handleFileModify will update store again, but UI is already correct)
-        await vaultSync.updateTodoInVault(resizeTodo, updates);
+        if (isCalendarOnly) {
+          // Update calendar-only todo in JSON
+          calendarOnlyTodos.update(currentTodos => {
+            return currentTodos.map(t =>
+              t.id === resizeTodo.id ? { ...t, ...updates } : t
+            );
+          });
+
+          // Save to plugin data
+          await plugin.updateCalendarOnlyTodo(resizeTodo.id, updates);
+        } else {
+          // Save vault todo to file (VaultSync will handle the store update)
+          await vaultSync.updateTodoInVault(resizeTodo, updates);
+        }
       }
-
-      // Reset state AFTER store update
-      isResizing = false;
-      resizeEventId = null;
-      resizeTodo = null;
-      initialTime = null;
-      resizeHandleType = null;
-      resizeVisualState = null;
     }
+
+    // Reset state AFTER store update (reset even if no updates)
+    isResizing = false;
+    resizeEventId = null;
+    resizeTodo = null;
+    initialTime = null;
+    resizeHandleType = null;
+    resizeVisualState = null;
 
     // Detach listeners when done
     window.removeEventListener('mousemove', handleMouseMove);
@@ -435,52 +460,144 @@
     event.preventDefault();
 
     const menu = new Menu();
+    const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
 
-    // Sous-menu pour changer la couleur (du tag ou "Sans tag")
+    // Sous-menu pour changer la couleur
     menu.addItem((item) => {
-      const tagToColor = todo.tags && todo.tags.length > 0 ? todo.tags[0] : '';
-      const submenu = item
-        .setTitle(tagToColor ? `Couleur pour #${tagToColor}` : 'Couleur (Sans tag)')
-        .setIcon('palette');
+      if (isCalendarOnly) {
+        // Pour les todos calendar-only : changer la couleur du todo directement
+        const submenu = item
+          .setTitle('Couleur')
+          .setIcon('palette');
 
-      // Ajouter chaque couleur comme sous-élément
-      Object.entries(TODO_COLORS).forEach(([colorKey, colorData]) => {
-        (item as any).setSubmenu().addItem((subItem: any) => {
-          subItem
-            .setTitle(colorData.name)
-            .onClick(() => {
-              setTagColor(tagToColor, colorKey as TodoColor);
-            });
+        // Ajouter chaque couleur comme sous-élément
+        Object.entries(TODO_COLORS).forEach(([colorKey, colorData]) => {
+          (item as any).setSubmenu().addItem((subItem: any) => {
+            subItem
+              .setTitle(colorData.name)
+              .onClick(async () => {
+                // Update the color in the store
+                calendarOnlyTodos.update(currentTodos => {
+                  return currentTodos.map(t =>
+                    t.id === todo.id ? { ...t, color: colorKey as TodoColor } : t
+                  );
+                });
+
+                // Save to plugin data
+                await plugin.updateCalendarOnlyTodo(todo.id, {
+                  color: colorKey as TodoColor
+                });
+              });
+          });
         });
-      });
+      } else {
+        // Pour les todos du vault : changer la couleur du tag
+        const tagToColor = todo.tags && todo.tags.length > 0 ? todo.tags[0] : '';
+        const submenu = item
+          .setTitle(tagToColor ? `Couleur pour #${tagToColor}` : 'Couleur (Sans tag)')
+          .setIcon('palette');
+
+        // Ajouter chaque couleur comme sous-élément
+        Object.entries(TODO_COLORS).forEach(([colorKey, colorData]) => {
+          (item as any).setSubmenu().addItem((subItem: any) => {
+            subItem
+              .setTitle(colorData.name)
+              .onClick(() => {
+                setTagColor(tagToColor, colorKey as TodoColor);
+              });
+          });
+        });
+      }
     });
 
     menu.addSeparator();
 
     menu.addItem((item) => {
       item
-        .setTitle('Remove from calendar')
-        .setIcon('calendar-x')
+        .setTitle('Duplicate')
+        .setIcon('copy')
         .onClick(async () => {
-          // Remove date, time and duration from todo
-          await vaultSync.updateTodoInVault(todo, {
-            date: undefined,
-            time: undefined,
-            duration: undefined
-          });
+          // Create a duplicate as a calendar-only todo
+          const duplicatedTodo = CalendarTodoService.createTodo(
+            todo.text,
+            todo.date || '',
+            todo.time || '00:00',
+            todo.duration || 30
+          );
+
+          // If the original had a color, copy it
+          if (isCalendarOnly && todo.color) {
+            duplicatedTodo.color = todo.color;
+          }
+
+          // Add to store
+          calendarOnlyTodos.update(todos => [...todos, duplicatedTodo]);
+
+          // Save to plugin data
+          await plugin.addCalendarOnlyTodo(duplicatedTodo);
         });
     });
 
     menu.addItem((item) => {
       item
-        .setTitle('Open file')
-        .setIcon('file-text')
+        .setTitle('Remove from calendar')
+        .setIcon('calendar-x')
         .onClick(async () => {
-          await openTodoInEditor(app, todo);
+          if (isCalendarOnly) {
+            // Delete the calendar-only todo permanently
+            await plugin.deleteCalendarOnlyTodo(todo.id);
+            calendarOnlyTodos.update(todos => todos.filter(t => t.id !== todo.id));
+          } else {
+            // Remove date, time and duration from vault todo
+            await vaultSync.updateTodoInVault(todo, {
+              date: undefined,
+              time: undefined,
+              duration: undefined
+            });
+          }
+        });
+    });
+
+    // Only show "Open file" for vault todos
+    if (!isCalendarOnly && todo.filePath) {
+      menu.addItem((item) => {
+        item
+          .setTitle('Open file')
+          .setIcon('file-text')
+          .onClick(async () => {
+            await openTodoInEditor(app, todo);
+          });
+      });
+    }
+
+    menu.showAtMouseEvent(event);
+  }
+
+  function handleCellContextMenu(event: MouseEvent, day: Date, hour: number) {
+    event.preventDefault();
+
+    const menu = new Menu();
+
+    menu.addItem((item) => {
+      item
+        .setTitle('Create task here')
+        .setIcon('plus')
+        .onClick(() => {
+          openCreateTodoModal(day, hour);
         });
     });
 
     menu.showAtMouseEvent(event);
+  }
+
+  function openCreateTodoModal(day: Date, hour: number) {
+    modalDate = formatDate(day);
+    modalTime = `${String(hour).padStart(2, '0')}:00`;
+    showCreateModal = true;
+  }
+
+  function closeCreateTodoModal() {
+    showCreateModal = false;
   }
 
   // Fast lookup functions - take maps as parameter to ensure Svelte reactivity
@@ -502,7 +619,157 @@
     return `${year}-${month}-${day}`;
   }
 
-  function getEventPosition(todo: Todo): { top: number; height: number } {
+  /**
+   * Converts time string to minutes since midnight
+   */
+  function timeToMinutes(time: string | undefined): number {
+    if (!time) return 0;
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Gets the effective duration for a todo (considers resize state)
+   */
+  function getEffectiveDuration(todo: Todo): number {
+    if (isResizing && resizeEventId === todo.id && resizeVisualState?.duration) {
+      return resizeVisualState.duration;
+    }
+    return todo.duration || 30;
+  }
+
+  /**
+   * Checks if two todos overlap in time
+   */
+  function todosOverlap(todo1: Todo, todo2: Todo): boolean {
+    const time1 = getEffectiveTime(todo1);
+    const time2 = getEffectiveTime(todo2);
+
+    if (!time1 || !time2) return false;
+
+    const start1 = timeToMinutes(time1);
+    const end1 = start1 + getEffectiveDuration(todo1);
+    const start2 = timeToMinutes(time2);
+    const end2 = start2 + getEffectiveDuration(todo2);
+
+    return start1 < end2 && start2 < end1;
+  }
+
+  /**
+   * Calculate column layout for overlapping events
+   * Returns { column: number, totalColumns: number } for each todo
+   */
+  function calculateOverlapColumns(todos: Todo[]): Map<string, { column: number; totalColumns: number }> {
+    const layout = new Map<string, { column: number; totalColumns: number }>();
+
+    if (todos.length === 0) return layout;
+    if (todos.length === 1) {
+      layout.set(todos[0].id, { column: 0, totalColumns: 1 });
+      return layout;
+    }
+
+    // Sort todos by start time
+    const sortedTodos = [...todos].sort((a, b) => {
+      const timeA = getEffectiveTime(a);
+      const timeB = getEffectiveTime(b);
+      return timeToMinutes(timeA) - timeToMinutes(timeB);
+    });
+
+    // Find overlapping groups
+    const groups: Todo[][] = [];
+    let currentGroup: Todo[] = [sortedTodos[0]];
+
+    for (let i = 1; i < sortedTodos.length; i++) {
+      const current = sortedTodos[i];
+      const overlapsWithGroup = currentGroup.some(todo => todosOverlap(todo, current));
+
+      if (overlapsWithGroup) {
+        currentGroup.push(current);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [current];
+      }
+    }
+    groups.push(currentGroup);
+
+    // Assign columns within each group
+    groups.forEach(group => {
+      if (group.length === 1) {
+        layout.set(group[0].id, { column: 0, totalColumns: 1 });
+      } else {
+        // Use a greedy algorithm to assign columns
+        const columns: Todo[][] = [];
+
+        group.forEach(todo => {
+          let placed = false;
+
+          // Try to place in an existing column
+          for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+            const column = columns[colIndex];
+            const overlapsInColumn = column.some(t => todosOverlap(t, todo));
+
+            if (!overlapsInColumn) {
+              column.push(todo);
+              layout.set(todo.id, { column: colIndex, totalColumns: 0 }); // totalColumns updated later
+              placed = true;
+              break;
+            }
+          }
+
+          // Create a new column if couldn't place
+          if (!placed) {
+            columns.push([todo]);
+            layout.set(todo.id, { column: columns.length - 1, totalColumns: 0 });
+          }
+        });
+
+        // Update totalColumns for all todos in this group
+        const totalColumns = columns.length;
+        group.forEach(todo => {
+          const current = layout.get(todo.id)!;
+          layout.set(todo.id, { ...current, totalColumns });
+        });
+      }
+    });
+
+    return layout;
+  }
+
+  /**
+   * Pre-compute overlap layout for all todos on each day
+   */
+  let overlapLayout = $derived.by(() => {
+    const layoutByDay = new Map<string, Map<string, { column: number; totalColumns: number }>>();
+
+    // Process each day
+    daysMetadata.forEach(dayMeta => {
+      const dateStr = formatDate(dayMeta.date);
+
+      // Get all timed todos for this day (across all hours)
+      const dayTodos: Todo[] = [];
+      hours.forEach(hour => {
+        const key = `${dateStr}-${hour}`;
+        const hourTodos = todosByDayHour.byHour.get(key) || [];
+        hourTodos.forEach(todo => {
+          if (!dayTodos.find(t => t.id === todo.id)) {
+            dayTodos.push(todo);
+          }
+        });
+      });
+
+      // Calculate layout for this day
+      const dayLayout = calculateOverlapColumns(dayTodos);
+      layoutByDay.set(dateStr, dayLayout);
+    });
+
+    return layoutByDay;
+  });
+
+  function getEventPosition(todo: Todo, dateStr: string): { top: number; height: number; column: number; totalColumns: number } {
+    // Get overlap layout
+    const dayLayout = overlapLayout.get(dateStr);
+    const overlap = dayLayout?.get(todo.id) || { column: 0, totalColumns: 1 };
+
     // Use visual state if this event is being resized
     if (isResizing && resizeEventId === todo.id && resizeVisualState) {
       const duration = resizeVisualState.duration ?? todo.duration ?? 30;
@@ -510,23 +777,23 @@
 
       // Use time from visual state if available (for top handle resize)
       const time = resizeVisualState.time || todo.time;
-      if (!time) return { top: 0, height };
+      if (!time) return { top: 0, height, ...overlap };
 
       const [hours, minutes] = time.split(':').map(Number);
       const top = (minutes / 60) * 60;
 
-      return { top, height };
+      return { top, height, ...overlap };
     }
 
     // Normal rendering
-    if (!todo.time) return { top: 0, height: 60 };
+    if (!todo.time) return { top: 0, height: 60, ...overlap };
 
     const [hours, minutes] = todo.time.split(':').map(Number);
     const top = (minutes / 60) * 60;
     const duration = todo.duration || 30;
     const height = (duration / 60) * 60;
 
-    return { top, height };
+    return { top, height, ...overlap };
   }
 </script>
 
@@ -586,11 +853,13 @@
             on:dragover={(e) => handleDragOver(e, dayIndex, hour)}
             on:dragleave={handleDragLeave}
             on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
+            on:contextmenu={(e) => handleCellContextMenu(e, dayMeta.date, hour)}
             role="gridcell"
             tabindex="0"
           >
             {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
-              {@const position = getEventPosition(todo)}
+              {@const dateStr = formatDate(dayMeta.date)}
+              {@const position = getEventPosition(todo, dateStr)}
               {@const colors = getTodoColorFromTags(todo, $tagColors)}
               <TodoItem
                 {todo}
@@ -629,6 +898,15 @@
     </div>
   </div>
 </div>
+
+<!-- Create Todo Modal -->
+{#if showCreateModal}
+  <CreateTodoModal
+    date={modalDate}
+    time={modalTime}
+    onClose={closeCreateTodoModal}
+  />
+{/if}
 
 <style>
   /* Calendar grid container with fixed header and scrollable body */

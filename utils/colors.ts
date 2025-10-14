@@ -51,6 +51,11 @@ export function getTodoColor(color?: TodoColor): { bg: string; text: string } {
  * Retourne la couleur d'un todo basée sur ses tags et la map de couleurs de tags
  */
 export function getTodoColorFromTags(todo: Todo, tagColors: Map<string, TodoColor>): { bg: string; text: string } {
+  // Si le todo est calendar-only et a une couleur personnalisée, utiliser cette couleur
+  if (todo.isCalendarOnly && todo.color) {
+    return TODO_COLORS[todo.color];
+  }
+
   // Si le todo a des tags, utiliser la couleur du premier tag qui a une couleur
   if (todo.tags && todo.tags.length > 0) {
     for (const tag of todo.tags) {

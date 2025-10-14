@@ -3,7 +3,7 @@ import { mount, unmount } from 'svelte';
 import TodoColumn from './components/TodoColumn.svelte';
 import CalendarView from './components/CalendarView.svelte';
 import { VaultSync } from './services/VaultSync';
-import { todos } from './stores/todoStore';
+import { setVaultTodos, calendarOnlyTodos } from './stores/todoStore';
 import { calendarEvents } from './stores/calendarStore';
 import type CalendTaskPlugin from './main';
 
@@ -21,7 +21,7 @@ export class CalendTaskView extends ItemView {
 
     // Initialize VaultSync
     this.vaultSync = new VaultSync(this.app, (updatedTodos) => {
-      todos.set(updatedTodos);
+      setVaultTodos(updatedTodos);
     });
   }
 
@@ -41,6 +41,10 @@ export class CalendTaskView extends ItemView {
     // Load calendar events from plugin data
     const savedEvents = this.plugin.getCalendarEvents();
     calendarEvents.set(savedEvents);
+
+    // Load calendar-only todos from plugin data
+    const savedCalendarOnlyTodos = this.plugin.getCalendarOnlyTodos();
+    calendarOnlyTodos.set(savedCalendarOnlyTodos);
 
     // Scan vault for todos
     await this.vaultSync.scanVault();

@@ -5,7 +5,7 @@
   export let todo: Todo;
   export let variant: 'calendar' | 'allday' | 'sidebar' = 'sidebar';
   export let colors: { bg: string; text: string };
-  export let position: { top: number; height: number } | undefined = undefined;
+  export let position: { top: number; height: number; column?: number; totalColumns?: number } | undefined = undefined;
   export let priorityClass: string = '';
   export let showPriority: boolean = false;
   export let showMeta: boolean = false;
@@ -18,6 +18,9 @@
   export let onDragStart: ((event: DragEvent, todo: Todo) => void) | undefined = undefined;
   export let onContextMenu: ((event: MouseEvent, todo: Todo) => void) | undefined = undefined;
   export let onResizeMouseDown: ((event: MouseEvent, todo: Todo, type: 'top' | 'bottom') => void) | undefined = undefined;
+
+  // Check if todo is calendar-only
+  $: isCalendarOnly = todo.isCalendarOnly === true;
 
   // Fonction pour obtenir l'icône de priorité
   function getPriorityIcon(priority?: string): string {
@@ -67,7 +70,16 @@
 
   // Compute style
   $: itemStyle = variant === 'calendar' && position
-    ? `top: ${position.top}px; height: ${position.height}px; background-color: ${colors.bg}; color: ${colors.text};`
+    ? (() => {
+        const column = position.column ?? 0;
+        const totalColumns = position.totalColumns ?? 1;
+
+        // Calculate width and left position for overlapping events
+        const widthPercent = totalColumns > 1 ? (100 / totalColumns) : 100;
+        const leftPercent = totalColumns > 1 ? (column * widthPercent) : 0;
+
+        return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${colors.bg}; color: ${colors.text};`;
+      })()
     : `background-color: ${colors.bg}; color: ${colors.text};`;
 
   // Resize logic for calendar events
@@ -129,17 +141,19 @@
   role="listitem"
 >
   <div class="item-content">
-    <input
-      type="checkbox"
-      class="item-checkbox"
-      checked={todo.status === 'done'}
-      on:click={(e) => onToggleStatus?.(e, todo)}
-    />
+    {#if !isCalendarOnly}
+      <input
+        type="checkbox"
+        class="item-checkbox"
+        checked={todo.status === 'done'}
+        on:click={(e) => onToggleStatus?.(e, todo)}
+      />
+    {/if}
     {#if showPriority && todo.priority}
       <span class="priority-badge">{getPriorityIcon(todo.priority)}</span>
     {/if}
     <span class="item-text" class:completed={todo.status === 'done'}>{todo.text}</span>
-    {#if showOpenArrow}
+    {#if showOpenArrow && !isCalendarOnly}
       <span class="open-file-arrow" on:click={(e) => { e.stopPropagation(); onDoubleClick?.(todo); }} role="button" tabindex="0">→</span>
     {/if}
   </div>
@@ -176,7 +190,7 @@
   .calendar-event {
     margin: 2px;
     position: absolute;
-    width: calc(100% - 4px);
+    /* width is set via inline style for overlap handling */
     overflow: hidden;
     z-index: 1;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);

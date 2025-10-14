@@ -1,6 +1,6 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
 import { CalendTaskView, VIEW_TYPE_CALENDTASK } from './CalendTaskView';
-import type { CalendarEvent } from './types';
+import type { CalendarEvent, Todo } from './types';
 
 interface CalendTaskSettings {
 	defaultDuration: number;
@@ -10,6 +10,7 @@ interface CalendTaskSettings {
 
 interface CalendTaskData {
 	calendarEvents: CalendarEvent[];
+	calendarOnlyTodos: Todo[];
 	uiState: {
 		collapsedTags: string[];
 	};
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: CalendTaskSettings = {
 
 const DEFAULT_DATA: CalendTaskData = {
 	calendarEvents: [],
+	calendarOnlyTodos: [],
 	uiState: {
 		collapsedTags: []
 	}
@@ -106,6 +108,38 @@ export default class CalendTaskPlugin extends Plugin {
 
 	async updateCollapsedTags(tags: string[]) {
 		this.data.uiState.collapsedTags = tags;
+		await this.savePluginData();
+	}
+
+	getCalendarOnlyTodos(): Todo[] {
+		return this.data.calendarOnlyTodos || [];
+	}
+
+	async addCalendarOnlyTodo(todo: Todo) {
+		if (!this.data.calendarOnlyTodos) {
+			this.data.calendarOnlyTodos = [];
+		}
+		this.data.calendarOnlyTodos.push(todo);
+		await this.savePluginData();
+	}
+
+	async updateCalendarOnlyTodo(todoId: string, updates: Partial<Todo>) {
+		if (!this.data.calendarOnlyTodos) return;
+
+		const index = this.data.calendarOnlyTodos.findIndex(t => t.id === todoId);
+		if (index >= 0) {
+			this.data.calendarOnlyTodos[index] = {
+				...this.data.calendarOnlyTodos[index],
+				...updates
+			};
+			await this.savePluginData();
+		}
+	}
+
+	async deleteCalendarOnlyTodo(todoId: string) {
+		if (!this.data.calendarOnlyTodos) return;
+
+		this.data.calendarOnlyTodos = this.data.calendarOnlyTodos.filter(t => t.id !== todoId);
 		await this.savePluginData();
 	}
 }

@@ -27,6 +27,11 @@ export const searchQuery = writable<string>('');
 export const hideCompleted = writable<boolean>(false);
 
 /**
+ * Cacher les tags vides (sans todos)
+ */
+export const hideEmptyTags = writable<boolean>(false);
+
+/**
  * Filtres actifs
  */
 export const activeFilters = writable<{

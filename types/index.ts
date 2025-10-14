@@ -42,8 +42,12 @@ export interface Todo {
   status: Status;
 
   // Métadonnées Obsidian
-  filePath: string;           // Chemin du fichier dans le vault
+  filePath?: string;          // Chemin du fichier dans le vault (optionnel pour calendar-only todos)
   lineNumber?: number;        // Numéro de ligne si tâche extraite d'une liste
+
+  // Calendar-only flag
+  isCalendarOnly?: boolean;   // true si créé directement depuis le calendrier (stocké en JSON)
+  color?: TodoColor;          // Couleur personnalisée pour les todos calendar-only
 
   // Récurrence
   recurrence?: RecurrencePattern;      // Pour les tâches récurrentes

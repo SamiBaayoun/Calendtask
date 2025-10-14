@@ -3,9 +3,31 @@ import type { Todo, TagGroup } from '../types';
 import { searchQuery } from './uiStore';
 
 /**
- * Store principal des todos
+ * Store des todos depuis le vault (via VaultSync)
  */
-export const todos = writable<Todo[]>([]);
+const vaultTodos = writable<Todo[]>([]);
+
+/**
+ * Store des todos calendar-only (stockés en JSON)
+ */
+export const calendarOnlyTodos = writable<Todo[]>([]);
+
+/**
+ * Store principal des todos (fusion vault + calendar-only)
+ */
+export const todos = derived(
+  [vaultTodos, calendarOnlyTodos],
+  ([$vaultTodos, $calendarOnlyTodos]) => {
+    return [...$vaultTodos, ...$calendarOnlyTodos];
+  }
+);
+
+/**
+ * Fonction pour mettre à jour les todos du vault
+ */
+export function setVaultTodos(newTodos: Todo[]) {
+  vaultTodos.set(newTodos);
+}
 
 /**
  * Store dérivé : Todos filtrés par recherche

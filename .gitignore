@@ -9,3 +9,4 @@ data.json
 quick-commit.sh
 .gitignore
 .claude/commands/commit.md
+documentation/

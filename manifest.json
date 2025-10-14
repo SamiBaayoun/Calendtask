@@ -1,7 +1,7 @@
 {
 	"id": "calendtask",
 	"name": "CalendTask",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "A powerful task management plugin with a visual weekly calendar. Schedule your tasks with drag-and-drop, manage priorities, and track time.",
 	"author": "SamiBaayoun",

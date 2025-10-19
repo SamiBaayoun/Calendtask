@@ -12,7 +12,7 @@ function getCursorPositionAfterText(lineContent: string): number {
   const prefixLength = todoMatch[0].length;
   const afterPrefix = lineContent.substring(prefixLength);
 
-  // Find first metadata marker: ⏳, ⏰, ⏱, #, !, @
+  // Find first metadata marker: ⏳, ⏰, ⏱, #, !, @ (with optional spaces before)
   const metadataMatch = afterPrefix.match(/\s+(⏳|⏰|⏱|#|!|@)/);
 
   if (metadataMatch && metadataMatch.index !== undefined) {

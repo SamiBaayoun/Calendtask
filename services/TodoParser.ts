@@ -79,9 +79,9 @@ export class TodoParser {
    * Ancien format (rétrocompatibilité): @YYYY-MM-DD HH:MM
    */
   extractDateTime(line: string): { date?: string; time?: string } {
-    // Nouveau format Tasks : ⏳2025-10-06 et ⏰14:30
-    const scheduledDateRegex = /⏳(\d{4}-\d{2}-\d{2})/;
-    const timeRegex = /⏰(\d{2}:\d{2})/;
+    // Nouveau format Tasks : ⏳2025-10-06 et ⏰14:30 (avec espaces optionnels)
+    const scheduledDateRegex = /⏳\s*(\d{4}-\d{2}-\d{2})/;
+    const timeRegex = /⏰\s*(\d{2}:\d{2})/;
 
     const dateMatch = line.match(scheduledDateRegex);
     const timeMatch = line.match(timeRegex);
@@ -168,19 +168,19 @@ export class TodoParser {
     return text
       // Retirer les tags
       .replace(/#[a-zA-Z0-9_-]+/g, '')
-      // Retirer la date scheduled (nouveau format)
-      .replace(/⏳\d{4}-\d{2}-\d{2}/g, '')
-      // Retirer l'heure (nouveau format)
-      .replace(/⏰\d{2}:\d{2}/g, '')
+      // Retirer la date scheduled (nouveau format avec espaces optionnels)
+      .replace(/⏳\s*\d{4}-\d{2}-\d{2}/g, '')
+      // Retirer l'heure (nouveau format avec espaces optionnels)
+      .replace(/⏰\s*\d{2}:\d{2}/g, '')
       // Retirer la date/heure (ancien format)
       .replace(/@\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?/g, '')
-      // Retirer la date de complétion (format Tasks)
-      .replace(/✅\d{4}-\d{2}-\d{2}/g, '')
+      // Retirer la date de complétion (format Tasks avec espaces optionnels)
+      .replace(/✅\s*\d{4}-\d{2}-\d{2}/g, '')
       // Retirer la priorité
       .replace(/!(low|medium|high|critical)/gi, '')
-      // Retirer la durée (formats: ⏱XXmin, ⏱XXh, ⏱XXhYY, ⏱XXhYYmin)
-      .replace(/⏱\d+h\d+(?:min)?/g, '')
-      .replace(/⏱\d+(?:min|h)/g, '')
+      // Retirer la durée (formats: ⏱XXmin, ⏱XXh, ⏱XXhYY, ⏱XXhYYmin avec espaces optionnels)
+      .replace(/⏱\s*\d+h\d+(?:min)?/g, '')
+      .replace(/⏱\s*\d+(?:min|h)/g, '')
       // Nettoyer les espaces multiples
       .replace(/\s+/g, ' ')
       .trim();

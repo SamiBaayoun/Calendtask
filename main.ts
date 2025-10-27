@@ -49,7 +49,7 @@ export default class CalendTaskPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-calendtask-view',
-			name: 'Open CalendTask View',
+			name: 'Open view',
 			callback: () => {
 				this.activateView();
 			}
@@ -59,19 +59,23 @@ export default class CalendTaskPlugin extends Plugin {
 	}
 
 	onunload() {
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CALENDTASK);
+		// Obsidian handles cleanup automatically - don't detach leaves here
 	}
 
 	async activateView() {
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_CALENDTASK);
+		// Check if view is already open
+		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDTASK);
 
-		let leaf = this.app.workspace.getLeaf('tab');
-		if (leaf) {
+		if (existingLeaves.length > 0) {
+			// If view already exists, just reveal it
+			this.app.workspace.revealLeaf(existingLeaves[0]);
+		} else {
+			// Otherwise, create a new leaf for the view
+			const leaf = this.app.workspace.getLeaf('tab');
 			await leaf.setViewState({
 				type: VIEW_TYPE_CALENDTASK,
 				active: true,
 			});
-
 			this.app.workspace.revealLeaf(leaf);
 		}
 	}

@@ -81,11 +81,15 @@ export class CalendTaskView extends ItemView {
   }
 
   async onClose() {
+    const promises: Promise<void>[] = [];
+
     if (this.todoColumn) {
-      void unmount(this.todoColumn);
+      promises.push(Promise.resolve(unmount(this.todoColumn)));
     }
     if (this.calendarView) {
-      void unmount(this.calendarView);
+      promises.push(Promise.resolve(unmount(this.calendarView)));
     }
+
+    await Promise.all(promises);
   }
 }

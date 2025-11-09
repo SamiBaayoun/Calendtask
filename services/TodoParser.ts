@@ -20,7 +20,7 @@ export class TodoParser {
    */
   parseTaskLine(line: string, filePath: string, lineNumber: number): Todo | null {
     // Regex pour détecter une tâche markdown
-    const taskRegex = /^[\s-]*\[([ x>\-])\]\s+(.+)$/i;
+    const taskRegex = /^[\s-]*\[([ x>-])\]\s+(.+)$/i;
     const match = line.match(taskRegex);
 
     if (!match) {

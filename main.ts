@@ -162,10 +162,6 @@ class CalendTaskSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Calendtask settings')
-			.setHeading();
-
-		new Setting(containerEl)
 			.setName('Default duration')
 			.setDesc('Default duration for new tasks (in minutes)')
 			.addText(text => text
@@ -195,7 +191,7 @@ class CalendTaskSettingTab extends PluginSettingTab {
 			.setName('Time format')
 			.setDesc('Display time in 12-hour or 24-hour format')
 			.addDropdown(dropdown => dropdown
-				.addOption('12h', '12-hour (AM/PM)')
+				.addOption('12h', '12-hour (am/pm)')
 				.addOption('24h', '24-hour')
 				.setValue(this.plugin.settings.timeFormat)
 				.onChange(async (value) => {

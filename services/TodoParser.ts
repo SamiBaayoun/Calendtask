@@ -1,5 +1,4 @@
-import { TFile, Vault } from 'obsidian';
-import type { Todo, Priority, Status, TodoColor } from '../types';
+import type { Todo, Priority, Status } from '../types';
 
 /**
  * TodoParser - Parse les fichiers markdown pour extraire les todos

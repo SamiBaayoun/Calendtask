@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, WorkspaceLeaf } from 'obsidian';
 import { mount, unmount } from 'svelte';
 import TodoColumn from './components/TodoColumn.svelte';
 import CalendarView from './components/CalendarView.svelte';
@@ -8,6 +8,9 @@ import { calendarEvents } from './stores/calendarStore';
 import type CalendTaskPlugin from './main';
 
 export const VIEW_TYPE_CALENDTASK = 'calendtask-view';
+
+type TodoColumnContext = App | VaultSync;
+type CalendarViewContext = App | VaultSync | CalendTaskPlugin;
 
 export class CalendTaskView extends ItemView {
   todoColumn: ReturnType<typeof TodoColumn> | undefined;
@@ -30,7 +33,7 @@ export class CalendTaskView extends ItemView {
   }
 
   getDisplayText() {
-    return 'CalendTask';
+    return 'Calendtask';
   }
 
   async onOpen() {
@@ -55,7 +58,7 @@ export class CalendTaskView extends ItemView {
     const todoColumnEl = container.createDiv('calendtask-todo-column');
     this.todoColumn = mount(TodoColumn, {
       target: todoColumnEl,
-      context: new Map<string, any>([
+      context: new Map<string, TodoColumnContext>([
         ['app', this.app],
         ['vaultSync', this.vaultSync]
       ])
@@ -64,7 +67,7 @@ export class CalendTaskView extends ItemView {
     const calendarViewEl = container.createDiv('calendtask-calendar-view');
     this.calendarView = mount(CalendarView, {
       target: calendarViewEl,
-      context: new Map<string, any>([
+      context: new Map<string, CalendarViewContext>([
         ['app', this.app],
         ['vaultSync', this.vaultSync],
         ['plugin', this.plugin]
@@ -73,16 +76,16 @@ export class CalendTaskView extends ItemView {
 
     // Subscribe to calendar events changes to persist them
     calendarEvents.subscribe((events) => {
-      this.plugin.updateCalendarEvents(events);
+      void this.plugin.updateCalendarEvents(events);
     });
   }
 
   async onClose() {
     if (this.todoColumn) {
-      unmount(this.todoColumn);
+      void unmount(this.todoColumn);
     }
     if (this.calendarView) {
-      unmount(this.calendarView);
+      void unmount(this.calendarView);
     }
   }
 }

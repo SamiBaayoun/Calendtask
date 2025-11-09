@@ -1,4 +1,4 @@
-import { App, TFile, TFolder, Vault, Notice } from 'obsidian';
+import { App, TFile, Notice } from 'obsidian';
 import { TodoParser } from './TodoParser';
 import type { Todo } from '../types';
 
@@ -68,15 +68,15 @@ export class VaultSync {
     });
 
     // Watch for file deletions
-    this.app.vault.on('delete', async (file) => {
+    this.app.vault.on('delete', (file) => {
       if (!(file instanceof TFile) || file.extension !== 'md') return;
-      await this.handleFileDelete(file);
+      this.handleFileDelete(file);
     });
 
     // Watch for file renames
-    this.app.vault.on('rename', async (file, oldPath) => {
+    this.app.vault.on('rename', (file, oldPath) => {
       if (!(file instanceof TFile) || file.extension !== 'md') return;
-      await this.handleFileRename(file, oldPath);
+      this.handleFileRename(file, oldPath);
     });
 
     // Watch for file creation
@@ -108,7 +108,7 @@ export class VaultSync {
   /**
    * Handle file deletion
    */
-  private async handleFileDelete(file: TFile): Promise<void> {
+  private handleFileDelete(file: TFile): void {
     const deletedCount = this.todos.filter(todo => todo.filePath === file.path).length;
 
     // Remove all todos from this file
@@ -123,7 +123,7 @@ export class VaultSync {
   /**
    * Handle file rename
    */
-  private async handleFileRename(file: TFile, oldPath: string): Promise<void> {
+  private handleFileRename(file: TFile, oldPath: string): void {
     // Update file paths for all todos from the old path
     this.todos = this.todos.map(todo => {
       if (todo.filePath === oldPath) {

@@ -8,7 +8,7 @@ export class CalendarTodoService {
    * Generate a unique ID for calendar-only todos
    */
   static generateId(): string {
-    return `calendar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `calendar-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**

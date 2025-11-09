@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { CalendTaskView, VIEW_TYPE_CALENDTASK } from './CalendTaskView';
 import type { CalendarEvent, Todo } from './types';
 
@@ -43,15 +43,15 @@ export default class CalendTaskPlugin extends Plugin {
 			(leaf) => new CalendTaskView(leaf, this)
 		);
 
-		this.addRibbonIcon('calendar-with-checkmark', 'Open CalendTask', () => {
-			this.activateView();
+		this.addRibbonIcon('calendar-with-checkmark', 'Open Calendtask', () => {
+			void this.activateView();
 		});
 
 		this.addCommand({
-			id: 'open-calendtask-view',
+			id: 'open-view',
 			name: 'Open view',
 			callback: () => {
-				this.activateView();
+				void this.activateView();
 			}
 		});
 
@@ -68,7 +68,7 @@ export default class CalendTaskPlugin extends Plugin {
 
 		if (existingLeaves.length > 0) {
 			// If view already exists, just reveal it
-			this.app.workspace.revealLeaf(existingLeaves[0]);
+			void this.app.workspace.revealLeaf(existingLeaves[0]);
 		} else {
 			// Otherwise, create a new leaf for the view
 			const leaf = this.app.workspace.getLeaf('tab');
@@ -76,7 +76,7 @@ export default class CalendTaskPlugin extends Plugin {
 				type: VIEW_TYPE_CALENDTASK,
 				active: true,
 			});
-			this.app.workspace.revealLeaf(leaf);
+			void this.app.workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -161,7 +161,9 @@ class CalendTaskSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'CalendTask Settings' });
+		new Setting(containerEl)
+			.setName('Calendtask settings')
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Default duration')

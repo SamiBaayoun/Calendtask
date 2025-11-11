@@ -19,6 +19,8 @@
   import { openTodoInEditor } from '../utils/editorUtils';
   import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
   import { CalendarTodoService } from '../services/CalendarTodoService';
+  import { ICSParser } from '../services/ICSParser';
+  import { Notice } from 'obsidian';
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
@@ -199,7 +201,6 @@
 
       // Si l'événement dépasse minuit, annuler le drop
       if (endMinutes > 1439) {
-        console.warn('Cannot drop event: would extend past 23:59');
         return;
       }
 
@@ -232,7 +233,7 @@
       }
 
     } catch (error) {
-      console.error('Error handling drop:', error);
+      // Error handling drop
     }
   }
 
@@ -600,6 +601,82 @@
     showCreateModal = false;
   }
 
+  // Handle ICS file import
+  async function handleICSImport() {
+    // Create a file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ics';
+
+    input.onchange = async (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+
+      if (!file) return;
+
+      try {
+        // Read file content
+        const content = await file.text();
+
+        // Parse ICS file
+        const icsEvents = ICSParser.parseICS(content);
+
+        if (icsEvents.length === 0) {
+          new Notice('No events found in ICS file');
+          return;
+        }
+
+        // Convert to todos
+        const newTodos = ICSParser.convertToTodos(icsEvents);
+        const existingTodos = $calendarOnlyTodos;
+
+        // Separate duplicates and unique todos
+        const { duplicates, unique } = ICSParser.separateDuplicates(newTodos, existingTodos);
+
+        // Remove existing duplicates (including all occurrences of recurring events)
+        if (duplicates.length > 0) {
+          const eventsToRemove = ICSParser.getExistingEventsByBaseUid(duplicates, existingTodos);
+
+          // Remove existing events from plugin data
+          for (const existingTodo of eventsToRemove) {
+            await plugin.deleteCalendarOnlyTodo(existingTodo.id);
+          }
+
+          // Remove from store
+          calendarOnlyTodos.update(todos =>
+            todos.filter(t => !eventsToRemove.some(r => r.id === t.id))
+          );
+        }
+
+        // Import all new todos (unique + duplicates)
+        const todosToImport = [...unique, ...duplicates];
+
+        for (const todo of todosToImport) {
+          await plugin.addCalendarOnlyTodo(todo);
+        }
+
+        // Update store
+        calendarOnlyTodos.update(todos => [...todos, ...todosToImport]);
+
+        // Show success message
+        const updatedCount = duplicates.length;
+        const newCount = unique.length;
+        let message = `Imported ${todosToImport.length} event(s) from ICS file`;
+        if (updatedCount > 0 && newCount > 0) {
+          message += ` (${newCount} new, ${updatedCount} updated)`;
+        } else if (updatedCount > 0) {
+          message += ` (${updatedCount} updated)`;
+        }
+        new Notice(message);
+
+      } catch (error) {
+        new Notice('Error importing ICS file. Please check the file format.');
+      }
+    };
+
+    input.click();
+  }
+
   // Fast lookup functions - take maps as parameter to ensure Svelte reactivity
   function getAllDayTodosForDay(day: Date, maps: typeof todosByDayHour): Todo[] {
     const dateStr = formatDate(day);
@@ -655,14 +732,26 @@
 
 <div class="calendar-container">
   <div class="calendar-header">
-    <div class="calendar-navigation">
-      <button on:click={goToPreviousWeek} class="nav-button">&lt;</button>
-      <button on:click={goToToday} class="nav-button">Today</button>
-      <button on:click={goToNextWeek} class="nav-button">&gt;</button>
+    <div>
+      <div class="calendar-navigation">
+        <button on:click={goToPreviousWeek} class="nav-button">&lt;</button>
+        <button on:click={goToToday} class="nav-button">Today</button>
+        <button on:click={goToNextWeek} class="nav-button">&gt;</button>
+      </div>
+      <h2 class="current-week-display">
+        {$currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+      </h2>
     </div>
-    <h2 class="current-week-display">
-      {$currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-    </h2>
+    <div class="calendar-actions">
+      <button on:click={handleICSImport} class="import-ics-button" title="Import ICS calendar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Import ICS
+      </button>
+    </div>
   </div>
 
   <div class="calendar-grid-container">

@@ -28,10 +28,13 @@ function getCursorPositionAfterText(lineContent: string): number {
  * Open a file in the editor and focus on a specific line
  */
 export async function openTodoInEditor(app: App, todo: Todo): Promise<void> {
+  if (!todo.filePath) {
+    return;
+  }
+
   const file = app.vault.getAbstractFileByPath(todo.filePath);
 
   if (!(file instanceof TFile)) {
-    console.error(`File not found: ${todo.filePath}`);
     return;
   }
 
@@ -68,10 +71,13 @@ export async function openTodoInEditor(app: App, todo: Todo): Promise<void> {
  * Open a file in a new pane
  */
 export async function openTodoInNewPane(app: App, todo: Todo): Promise<void> {
+  if (!todo.filePath) {
+    return;
+  }
+
   const file = app.vault.getAbstractFileByPath(todo.filePath);
 
   if (!(file instanceof TFile)) {
-    console.error(`File not found: ${todo.filePath}`);
     return;
   }
 

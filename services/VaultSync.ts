@@ -30,7 +30,7 @@ export class VaultSync {
         const fileTodos = await this.parseTodosFromFile(file);
         todos.push(...fileTodos);
       } catch (error) {
-        console.error(`Error parsing todos from ${file.path}:`, error);
+        // Error parsing todos from file
       }
     }
 
@@ -101,7 +101,7 @@ export class VaultSync {
 
       this.onTodosUpdate([...this.todos]);
     } catch (error) {
-      console.error(`Error handling file modify for ${file.path}:`, error);
+      // Error handling file modification
     }
   }
 
@@ -147,7 +147,7 @@ export class VaultSync {
         this.onTodosUpdate([...this.todos]);
       }
     } catch (error) {
-      console.error(`Error handling file create for ${file.path}:`, error);
+      // Error handling file creation
     }
   }
 
@@ -157,13 +157,11 @@ export class VaultSync {
   async updateTodoInVault(todo: Todo, updates: Partial<Todo>): Promise<void> {
     // Ignore calendar-only todos (they don't have files)
     if (todo.isCalendarOnly || !todo.filePath) {
-      console.warn('Cannot update calendar-only todo in vault');
       return;
     }
 
     const file = this.app.vault.getAbstractFileByPath(todo.filePath);
     if (!(file instanceof TFile)) {
-      console.error(`File not found: ${todo.filePath}`);
       return;
     }
 
@@ -172,7 +170,6 @@ export class VaultSync {
       const lines = content.split('\n');
 
       if (todo.lineNumber === undefined || todo.lineNumber >= lines.length) {
-        console.error(`Invalid line number for todo: ${todo.lineNumber}`);
         return;
       }
 
@@ -289,7 +286,6 @@ export class VaultSync {
       await this.app.vault.modify(file, lines.join('\n'));
 
     } catch (error) {
-      console.error(`Error updating todo in vault:`, error);
       new Notice(`Failed to update todo in ${file.basename}`);
     }
   }

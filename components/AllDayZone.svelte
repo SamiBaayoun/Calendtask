@@ -47,7 +47,7 @@
       });
 
     } catch (error) {
-      console.error('Error handling all-day drop:', error);
+      // Error handling all-day drop
     }
   }
 

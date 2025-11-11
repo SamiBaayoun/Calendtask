@@ -48,6 +48,7 @@ export interface Todo {
   // Calendar-only flag
   isCalendarOnly?: boolean;   // true si créé directement depuis le calendrier (stocké en JSON)
   color?: TodoColor;          // Couleur personnalisée pour les todos calendar-only
+  icsUid?: string;            // UID original du fichier ICS (pour détection de doublons)
 
   // Récurrence
   recurrence?: RecurrencePattern;      // Pour les tâches récurrentes

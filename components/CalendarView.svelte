@@ -9,7 +9,10 @@
     daysInWeek,
     goToPreviousWeek,
     goToNextWeek,
-    goToToday
+    goToToday,
+    calendarView,
+    setCalendarView,
+    type CalendarViewType
   } from '../stores/calendarStore';
   import { todos, calendarOnlyTodos } from '../stores/todoStore';
   import { tagColors, setTagColor } from '../stores/uiStore';
@@ -459,6 +462,7 @@
 
   async function handleEventContextMenu(event: MouseEvent, todo: Todo) {
     event.preventDefault();
+    event.stopPropagation();
 
     const menu = new Menu();
     const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
@@ -526,10 +530,18 @@
             todo.duration || 30
           );
 
-          // If the original had a color, copy it
+          // Copy additional properties from the original
           if (isCalendarOnly && todo.color) {
             duplicatedTodo.color = todo.color;
           }
+
+          // Copy tags and priority
+          duplicatedTodo.tags = todo.tags ? [...todo.tags] : [];
+          duplicatedTodo.priority = todo.priority;
+
+          // Copy file reference to keep link to source note
+          duplicatedTodo.filePath = todo.filePath;
+          duplicatedTodo.lineNumber = todo.lineNumber;
 
           // Add to store
           calendarOnlyTodos.update(todos => [...todos, duplicatedTodo]);
@@ -559,8 +571,8 @@
         });
     });
 
-    // Only show "Open file" for vault todos
-    if (!isCalendarOnly && todo.filePath) {
+    // Show "Open file" if the task has an associated file
+    if (todo.filePath) {
       menu.addItem((item) => {
         item
           .setTitle('Open file')
@@ -696,12 +708,145 @@
     return `${year}-${month}-${day}`;
   }
 
-  // TEMPORARY: Overlap detection disabled due to Svelte 5 reactivity bug causing freezes
-  // TODO: Re-implement overlap detection with proper performance optimizations
+  /**
+   * Gets the effective duration for a todo (considers resize state)
+   */
+  function getEffectiveDuration(todo: Todo): number {
+    if (isResizing && resizeEventId === todo.id && resizeVisualState?.duration) {
+      return resizeVisualState.duration;
+    }
+    return todo.duration || 30;
+  }
+
+  /**
+   * Converts time string to minutes since midnight
+   */
+  function timeToMinutes(time: string | undefined): number {
+    if (!time) return 0;
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Checks if two todos overlap in time
+   */
+  function todosOverlap(todo1: Todo, todo2: Todo): boolean {
+    const time1 = getEffectiveTime(todo1);
+    const time2 = getEffectiveTime(todo2);
+
+    if (!time1 || !time2) return false;
+
+    const start1 = timeToMinutes(time1);
+    const end1 = start1 + getEffectiveDuration(todo1);
+    const start2 = timeToMinutes(time2);
+    const end2 = start2 + getEffectiveDuration(todo2);
+
+    return start1 < end2 && start2 < end1;
+  }
+
+  /**
+   * Calculate column layout for overlapping events using greedy algorithm
+   * Returns { column: number, totalColumns: number } for each todo
+   */
+  function calculateOverlapColumns(todos: Todo[]): Map<string, { column: number; totalColumns: number }> {
+    const layout = new Map<string, { column: number; totalColumns: number }>();
+
+    if (todos.length === 0) return layout;
+    if (todos.length === 1) {
+      layout.set(todos[0].id, { column: 0, totalColumns: 1 });
+      return layout;
+    }
+
+    // 1. Sort todos by start time
+    const sortedTodos = [...todos].sort((a, b) => {
+      const timeA = getEffectiveTime(a);
+      const timeB = getEffectiveTime(b);
+      return timeToMinutes(timeA) - timeToMinutes(timeB);
+    });
+
+    // 2. Find overlapping groups
+    const groups: Todo[][] = [];
+    let currentGroup: Todo[] = [sortedTodos[0]];
+
+    for (let i = 1; i < sortedTodos.length; i++) {
+      const current = sortedTodos[i];
+      const overlapsWithGroup = currentGroup.some(todo => todosOverlap(todo, current));
+
+      if (overlapsWithGroup) {
+        currentGroup.push(current);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [current];
+      }
+    }
+    groups.push(currentGroup);
+
+    // 3. Assign columns within each group using greedy algorithm
+    groups.forEach(group => {
+      if (group.length === 1) {
+        layout.set(group[0].id, { column: 0, totalColumns: 1 });
+      } else {
+        const columns: Todo[][] = [];
+
+        group.forEach(todo => {
+          let placed = false;
+
+          // Try to place in an existing column
+          for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+            const column = columns[colIndex];
+            const overlapsInColumn = column.some(t => todosOverlap(t, todo));
+
+            if (!overlapsInColumn) {
+              column.push(todo);
+              layout.set(todo.id, { column: colIndex, totalColumns: 0 });
+              placed = true;
+              break;
+            }
+          }
+
+          // Create a new column if couldn't place
+          if (!placed) {
+            columns.push([todo]);
+            layout.set(todo.id, { column: columns.length - 1, totalColumns: 0 });
+          }
+        });
+
+        // Update totalColumns for all todos in this group
+        const totalColumns = columns.length;
+        group.forEach(todo => {
+          const current = layout.get(todo.id)!;
+          layout.set(todo.id, { ...current, totalColumns });
+        });
+      }
+    });
+
+    return layout;
+  }
+
+  /**
+   * Calculate overlap layout for a specific day (lazy evaluation)
+   * Only called when rendering that day's events
+   */
+  function calculateDayOverlap(dateStr: string, allTodos: Todo[]): Map<string, { column: number; totalColumns: number }> {
+    // Get all timed todos for this day
+    const dayTodos: Todo[] = [];
+
+    allTodos.forEach(todo => {
+      if (todo.date !== dateStr) return;
+
+      const effectiveTime = getEffectiveTime(todo);
+      if (!effectiveTime) return; // Skip all-day events
+
+      dayTodos.push(todo);
+    });
+
+    return calculateOverlapColumns(dayTodos);
+  }
 
   function getEventPosition(todo: Todo, dateStr: string): { top: number; height: number; column: number; totalColumns: number } {
-    // Temporarily disable overlap detection - all todos take full width
-    const overlap = { column: 0, totalColumns: 1 };
+    // Calculate overlap layout for this day (lazy evaluation)
+    const dayLayout = calculateDayOverlap(dateStr, $todos);
+    const overlap = dayLayout.get(todo.id) || { column: 0, totalColumns: 1 };
 
     // Use visual state if this event is being resized
     if (isResizing && resizeEventId === todo.id && resizeVisualState) {
@@ -743,6 +888,29 @@
       </h2>
     </div>
     <div class="calendar-actions">
+      <div class="calendar-view-selector">
+        <button
+          on:click={() => setCalendarView('day')}
+          class="view-button"
+          class:active={$calendarView === 'day'}
+        >
+          Day
+        </button>
+        <button
+          on:click={() => setCalendarView('threeDays')}
+          class="view-button"
+          class:active={$calendarView === 'threeDays'}
+        >
+          3 Days
+        </button>
+        <button
+          on:click={() => setCalendarView('week')}
+          class="view-button"
+          class:active={$calendarView === 'week'}
+        >
+          Week
+        </button>
+      </div>
       <button on:click={handleICSImport} class="import-ics-button" title="Import ICS calendar">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -754,9 +922,9 @@
     </div>
   </div>
 
-  <div class="calendar-grid-container">
+  <div class="calendar-grid-container" class:view-day={$calendarView === 'day'} class:view-threeDays={$calendarView === 'threeDays'} class:view-week={$calendarView === 'week'}>
     <!-- Partie fixe: En-têtes et zone All-Day -->
-    <div class="calendar-grid-header">
+    <div class="calendar-grid-header" class:view-day={$calendarView === 'day'} class:view-threeDays={$calendarView === 'threeDays'} class:view-week={$calendarView === 'week'}>
       <!-- En-tête avec les jours de la semaine -->
       <div class="time-column-header"></div>
       {#each daysMetadata as dayMeta (dayMeta.timestamp)}
@@ -774,10 +942,10 @@
     </div>
 
     <!-- Partie scrollable: Grille horaire -->
-    <div class="calendar-grid-body">
+    <div class="calendar-grid-body" class:view-day={$calendarView === 'day'} class:view-threeDays={$calendarView === 'threeDays'} class:view-week={$calendarView === 'week'}>
       <!-- Current time indicator (only show if today is in the current week) -->
       {#if todayDayIndex >= 0}
-        <div class="current-time-wrapper" style="top: {currentTimePosition}px;">
+        <div class="current-time-wrapper" class:view-day={$calendarView === 'day'} class:view-threeDays={$calendarView === 'threeDays'} class:view-week={$calendarView === 'week'} style="top: {currentTimePosition}px;">
           <!-- Ligne fine qui traverse toute la semaine -->
           <div class="time-line-full">
             <span class="current-time-label">{currentTimeString}</span>
@@ -874,6 +1042,14 @@
     background-color: var(--background-secondary);
   }
 
+  .calendar-grid-header.view-day {
+    grid-template-columns: 60px 1fr;
+  }
+
+  .calendar-grid-header.view-threeDays {
+    grid-template-columns: 60px repeat(3, 1fr);
+  }
+
   .calendar-grid-body {
     flex-grow: 1;
     overflow-y: auto;
@@ -884,6 +1060,14 @@
     gap: 0;
     position: relative;
     contain: layout style paint;
+  }
+
+  .calendar-grid-body.view-day {
+    grid-template-columns: 60px 1fr;
+  }
+
+  .calendar-grid-body.view-threeDays {
+    grid-template-columns: 60px repeat(3, 1fr);
   }
 
   /* Current time indicator */
@@ -899,12 +1083,28 @@
     gap: 0;
   }
 
+  .current-time-wrapper.view-day {
+    grid-template-columns: 60px 1fr;
+  }
+
+  .current-time-wrapper.view-threeDays {
+    grid-template-columns: 60px repeat(3, 1fr);
+  }
+
   .time-line-full {
     grid-column: 2 / 9; /* Du début de Monday (col 2) à la fin de Sunday (col 9) */
     grid-row: 1;
     height: 2px;
     background-color: rgba(255, 0, 0, 0.6);
     position: relative;
+  }
+
+  .view-day .time-line-full {
+    grid-column: 2 / 3;
+  }
+
+  .view-threeDays .time-line-full {
+    grid-column: 2 / 5;
   }
 
   .current-time-label {

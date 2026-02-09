@@ -4,15 +4,18 @@
   import TodoItem from './TodoItem.svelte';
   import type { TagGroup as TagGroupType, Todo, TodoColor } from '../types';
   import type { VaultSync } from '../services/VaultSync';
+  import type CalendTaskPlugin from '../main';
   import { collapsedTags, toggleTagCollapsed, tagColors, setTagColor } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
   import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { activeTimer } from '../stores/timerStore';
 
   export let group: TagGroupType;
   export let hideCompletedTodos: boolean = false;
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
+  const plugin = getContext<CalendTaskPlugin>('plugin');
   let isCollapsed = false;
 
   // Filtrer les todos terminés si hideCompletedTodos est activé et trier alphabétiquement
@@ -35,8 +38,60 @@
 
   async function handleContextMenu(event: MouseEvent, todo: Todo) {
     event.preventDefault();
+    event.stopPropagation();
 
     const menu = new Menu();
+
+    // Option Timer (uniquement tâches non calendar-only)
+    if (!todo.isCalendarOnly) {
+      const hasTimer = $activeTimer?.todoId === todo.id;
+
+      if (hasTimer) {
+        if ($activeTimer?.isPaused) {
+          // Option "Resume timer" avec icône play
+          menu.addItem((item) => {
+            item
+              .setTitle('Resume timer')
+              .setIcon('play')
+              .onClick(async () => {
+                await plugin.timerService.resumeCurrentTimer();
+              });
+          });
+        } else {
+          // Option "Pause timer" avec icône pause
+          menu.addItem((item) => {
+            item
+              .setTitle('Pause timer')
+              .setIcon('pause')
+              .onClick(async () => {
+                await plugin.timerService.pauseCurrentTimer();
+              });
+          });
+        }
+
+        // Option "Stop timer" avec icône square
+        menu.addItem((item) => {
+          item
+            .setTitle('Stop timer')
+            .setIcon('square')
+            .onClick(async () => {
+              await plugin.timerService.stopCurrentTimer();
+            });
+        });
+      } else {
+        // Option "Start timer" avec icône play
+        menu.addItem((item) => {
+          item
+            .setTitle('Start timer')
+            .setIcon('play')
+            .onClick(async () => {
+              await plugin.timerService.startTimerForTodo(todo);
+            });
+        });
+      }
+
+      menu.addSeparator();
+    }
 
     // Submenu to change color (for tag or "No tag")
     menu.addItem((item) => {
@@ -59,14 +114,17 @@
 
     menu.addSeparator();
 
-    menu.addItem((item) => {
-      item
-        .setTitle('Open file')
-        .setIcon('file-text')
-        .onClick(async () => {
-          await openTodoInEditor(app, todo);
-        });
-    });
+    // Option "Open file" si la tâche a un fichier associé
+    if (todo.filePath) {
+      menu.addItem((item) => {
+        item
+          .setTitle('Open file')
+          .setIcon('file-text')
+          .onClick(async () => {
+            await openTodoInEditor(app, todo);
+          });
+      });
+    }
 
     menu.showAtMouseEvent(event);
   }

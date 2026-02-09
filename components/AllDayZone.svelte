@@ -118,6 +118,7 @@
 
   async function handleEventContextMenu(event: MouseEvent, todo: Todo) {
     event.preventDefault();
+    event.stopPropagation();
 
     const menu = new Menu();
 
@@ -135,14 +136,17 @@
         });
     });
 
-    menu.addItem((item) => {
-      item
-        .setTitle('Open file')
-        .setIcon('file-text')
-        .onClick(async () => {
-          await openTodoInEditor(app, todo);
-        });
-    });
+    // Option "Open file" si la tâche a un fichier associé
+    if (todo.filePath) {
+      menu.addItem((item) => {
+        item
+          .setTitle('Open file')
+          .setIcon('file-text')
+          .onClick(async () => {
+            await openTodoInEditor(app, todo);
+          });
+      });
+    }
 
     menu.showAtMouseEvent(event);
   }

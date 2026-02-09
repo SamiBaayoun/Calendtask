@@ -34,18 +34,54 @@
   justify-content: space-between;
   margin-bottom: 20px;
   padding: 0 4px;
+  gap: 16px;
 }
 
 .calendar-header > div:first-child {
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .calendar-navigation {
   display: flex;
   gap: 8px;
   margin-right: 16px;
+}
+
+.calendar-view-selector {
+  display: flex !important;
+  gap: 4px;
+  padding: 4px;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 200px;
+}
+
+.view-button {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  padding: 6px 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.view-button:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.view-button.active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  border-color: var(--interactive-accent);
 }
 
 .nav-button {
@@ -266,6 +302,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 0 auto;
 }
 
 .import-ics-button {

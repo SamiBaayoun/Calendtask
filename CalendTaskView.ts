@@ -5,11 +5,13 @@ import CalendarView from './components/CalendarView.svelte';
 import { VaultSync } from './services/VaultSync';
 import { setVaultTodos, calendarOnlyTodos } from './stores/todoStore';
 import { calendarEvents } from './stores/calendarStore';
+import { tagColors } from './stores/uiStore';
+import type { TodoColor } from './types';
 import type CalendTaskPlugin from './main';
 
 export const VIEW_TYPE_CALENDTASK = 'calendtask-view';
 
-type TodoColumnContext = App | VaultSync;
+type TodoColumnContext = App | VaultSync | CalendTaskPlugin;
 type CalendarViewContext = App | VaultSync | CalendTaskPlugin;
 
 export class CalendTaskView extends ItemView {
@@ -49,6 +51,14 @@ export class CalendTaskView extends ItemView {
     const savedCalendarOnlyTodos = this.plugin.getCalendarOnlyTodos();
     calendarOnlyTodos.set(savedCalendarOnlyTodos);
 
+    // Load tag colors from plugin data
+    const savedTagColors = this.plugin.getTagColors();
+    const tagColorsMap = new Map<string, TodoColor>();
+    Object.entries(savedTagColors).forEach(([tag, color]) => {
+      tagColorsMap.set(tag, color);
+    });
+    tagColors.set(tagColorsMap);
+
     // Scan vault for todos
     await this.vaultSync.scanVault();
 
@@ -60,7 +70,8 @@ export class CalendTaskView extends ItemView {
       target: todoColumnEl,
       context: new Map<string, TodoColumnContext>([
         ['app', this.app],
-        ['vaultSync', this.vaultSync]
+        ['vaultSync', this.vaultSync],
+        ['plugin', this.plugin]
       ])
     });
 
@@ -77,6 +88,15 @@ export class CalendTaskView extends ItemView {
     // Subscribe to calendar events changes to persist them
     calendarEvents.subscribe((events) => {
       void this.plugin.updateCalendarEvents(events);
+    });
+
+    // Subscribe to tag colors changes to persist them
+    tagColors.subscribe((colors) => {
+      const tagColorsObj: Record<string, TodoColor> = {};
+      colors.forEach((color, tag) => {
+        tagColorsObj[tag] = color;
+      });
+      void this.plugin.updateTagColors(tagColorsObj);
     });
   }
 

@@ -24,12 +24,12 @@ export const searchQuery = writable<string>('');
 /**
  * Cacher les todos terminés
  */
-export const hideCompleted = writable<boolean>(false);
+export const hideCompleted = writable<boolean>(true);
 
 /**
  * Cacher les tags vides (sans todos)
  */
-export const hideEmptyTags = writable<boolean>(false);
+export const hideEmptyTags = writable<boolean>(true);
 
 /**
  * Filtres actifs

@@ -1,26 +1,42 @@
 <script lang="ts">
   import type { Todo } from '../types';
+  import { activeTimer, timerElapsedTime, formatTimerDuration } from '../stores/timerStore';
 
   // Props
-  export let todo: Todo;
-  export let variant: 'calendar' | 'allday' | 'sidebar' = 'sidebar';
-  export let colors: { bg: string; text: string };
-  export let position: { top: number; height: number; column?: number; totalColumns?: number } | undefined = undefined;
-  export let priorityClass: string = '';
-  export let showPriority: boolean = false;
-  export let showMeta: boolean = false;
-  export let showOpenArrow: boolean = false;
-  export let showResizeHandles: boolean = false;
-
-  // Event handlers
-  export let onToggleStatus: ((event: MouseEvent, todo: Todo) => void) | undefined = undefined;
-  export let onDoubleClick: ((todo: Todo) => void) | undefined = undefined;
-  export let onDragStart: ((event: DragEvent, todo: Todo) => void) | undefined = undefined;
-  export let onContextMenu: ((event: MouseEvent, todo: Todo) => void) | undefined = undefined;
-  export let onResizeMouseDown: ((event: MouseEvent, todo: Todo, type: 'top' | 'bottom') => void) | undefined = undefined;
+  let {
+    todo,
+    variant = 'sidebar',
+    colors,
+    position = undefined,
+    priorityClass = '',
+    showPriority = false,
+    showMeta = false,
+    showOpenArrow = false,
+    showResizeHandles = false,
+    onToggleStatus = undefined,
+    onDoubleClick = undefined,
+    onDragStart = undefined,
+    onContextMenu = undefined,
+    onResizeMouseDown = undefined
+  }: {
+    todo: Todo;
+    variant?: 'calendar' | 'allday' | 'sidebar';
+    colors: { bg: string; text: string };
+    position?: { top: number; height: number; column?: number; totalColumns?: number };
+    priorityClass?: string;
+    showPriority?: boolean;
+    showMeta?: boolean;
+    showOpenArrow?: boolean;
+    showResizeHandles?: boolean;
+    onToggleStatus?: (event: MouseEvent, todo: Todo) => void;
+    onDoubleClick?: (todo: Todo) => void;
+    onDragStart?: (event: DragEvent, todo: Todo) => void;
+    onContextMenu?: (event: MouseEvent, todo: Todo) => void;
+    onResizeMouseDown?: (event: MouseEvent, todo: Todo, type: 'top' | 'bottom') => void;
+  } = $props();
 
   // Check if todo is calendar-only
-  $: isCalendarOnly = todo.isCalendarOnly === true;
+  let isCalendarOnly = $derived(todo.isCalendarOnly === true);
 
   // Fonction pour obtenir l'icône de priorité
   function getPriorityIcon(priority?: string): string {
@@ -64,12 +80,12 @@
   }
 
   // Compute class based on variant
-  $: itemClass = variant === 'calendar' ? 'calendar-event' :
-                 variant === 'allday' ? 'all-day-event' :
-                 'todo-item';
+  let itemClass = $derived(variant === 'calendar' ? 'calendar-event' :
+                           variant === 'allday' ? 'all-day-event' :
+                           'todo-item');
 
   // Compute style
-  $: itemStyle = variant === 'calendar' && position
+  let itemStyle = $derived(variant === 'calendar' && position
     ? (() => {
         const column = position.column ?? 0;
         const totalColumns = position.totalColumns ?? 1;
@@ -80,10 +96,17 @@
 
         return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${colors.bg}; color: ${colors.text};`;
       })()
-    : `background-color: ${colors.bg}; color: ${colors.text};`;
+    : `background-color: ${colors.bg}; color: ${colors.text};`);
+
+  // Timer state
+  let hasTimer = $derived($activeTimer?.todoId === todo.id);
+  let isPaused = $derived($activeTimer?.isPaused === true);
+  let timerDisplay = $derived(
+    hasTimer ? formatTimerDuration($timerElapsedTime) : ''
+  );
 
   // Resize logic for calendar events
-  let currentCursor = 'grab';
+  let currentCursor = $state('grab');
 
   function handleMouseMove(e: MouseEvent) {
     if (variant !== 'calendar' || !showResizeHandles) return;
@@ -132,6 +155,7 @@
 <div
   class="{itemClass} {priorityClass}"
   class:completed={todo.status === 'done'}
+  class:has-active-timer={hasTimer}
   style="{itemStyle} cursor: {currentCursor};"
   draggable="true"
   on:dragstart={(e) => onDragStart?.(e, todo)}
@@ -153,6 +177,16 @@
       <span class="priority-badge">{getPriorityIcon(todo.priority)}</span>
     {/if}
     <span class="item-text" class:completed={todo.status === 'done'}>{todo.text}</span>
+    {#if hasTimer && variant === 'sidebar'}
+      <span class="timer-badge" class:paused={isPaused}>
+        {#if isPaused}
+          <span class="timer-icon">⏸️</span>
+        {:else}
+          <span class="timer-icon">▶️</span>
+        {/if}
+        <span class="timer-time">{timerDisplay}</span>
+      </span>
+    {/if}
     {#if showOpenArrow && !isCalendarOnly}
       <span class="open-file-arrow" on:click={(e) => { e.stopPropagation(); onDoubleClick?.(todo); }} role="button" tabindex="0">→</span>
     {/if}
@@ -191,12 +225,18 @@
     margin: 2px;
     position: absolute;
     /* width is set via inline style for overlap handling */
-    overflow: hidden;
+    overflow: visible;
     z-index: 1;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     border-left: 3px solid rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
+  }
+
+  .calendar-event .item-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .calendar-event:hover {
@@ -454,5 +494,57 @@
 
   .open-file-arrow:hover {
     transform: translateX(2px);
+  }
+
+  /* Timer badge */
+  .timer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
+    animation: pulse-timer 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .timer-badge.paused {
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    box-shadow: 0 2px 4px rgba(100, 116, 139, 0.3);
+    animation: none;
+  }
+
+  .timer-icon {
+    font-size: 0.9em;
+    line-height: 1;
+  }
+
+  .timer-time {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
+  }
+
+  @keyframes pulse-timer {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+  }
+
+  .has-active-timer {
+    border-left-color: #22c55e !important;
+    border-left-width: 4px !important;
+  }
+
+  .has-active-timer.paused {
+    border-left-color: #64748b !important;
   }
 </style>

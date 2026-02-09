@@ -1,6 +1,8 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { CalendTaskView, VIEW_TYPE_CALENDTASK } from './CalendTaskView';
-import type { CalendarEvent, Todo } from './types';
+import type { CalendarEvent, Todo, TodoColor } from './types';
+import { TimerService } from './services/TimerService';
+import type { TimerState } from './stores/timerStore';
 
 interface CalendTaskSettings {
 	defaultDuration: number;
@@ -13,7 +15,9 @@ interface CalendTaskData {
 	calendarOnlyTodos: Todo[];
 	uiState: {
 		collapsedTags: string[];
+		tagColors?: Record<string, TodoColor>;
 	};
+	timerState?: TimerState | null;
 }
 
 const DEFAULT_SETTINGS: CalendTaskSettings = {
@@ -33,10 +37,15 @@ const DEFAULT_DATA: CalendTaskData = {
 export default class CalendTaskPlugin extends Plugin {
 	settings: CalendTaskSettings;
 	data: CalendTaskData;
+	timerService: TimerService;
 
 	async onload() {
 		await this.loadSettings();
 		await this.loadPluginData();
+
+		// Initialize timer service
+		this.timerService = new TimerService(this);
+		await this.timerService.loadTimerState();
 
 		this.registerView(
 			VIEW_TYPE_CALENDTASK,
@@ -58,7 +67,9 @@ export default class CalendTaskPlugin extends Plugin {
 		this.addSettingTab(new CalendTaskSettingTab(this.app, this));
 	}
 
-	onunload() {
+	async onunload() {
+		// Stop any active timer before unloading
+		await this.timerService.onUnload();
 		// Obsidian handles cleanup automatically - don't detach leaves here
 	}
 
@@ -144,6 +155,15 @@ export default class CalendTaskPlugin extends Plugin {
 		if (!this.data.calendarOnlyTodos) return;
 
 		this.data.calendarOnlyTodos = this.data.calendarOnlyTodos.filter(t => t.id !== todoId);
+		await this.savePluginData();
+	}
+
+	getTagColors(): Record<string, TodoColor> {
+		return this.data.uiState.tagColors || {};
+	}
+
+	async updateTagColors(tagColors: Record<string, TodoColor>) {
+		this.data.uiState.tagColors = tagColors;
 		await this.savePluginData();
 	}
 }

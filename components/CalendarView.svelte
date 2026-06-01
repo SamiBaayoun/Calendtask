@@ -20,7 +20,7 @@
   import type { VaultSync } from '../services/VaultSync';
   import type CalendTaskPlugin from '../main';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { TODO_COLORS, getTodoHueFromTags } from '../utils/colors';
   import { CalendarTodoService } from '../services/CalendarTodoService';
   import { ICSParser } from '../services/ICSParser';
   import { Notice } from 'obsidian';
@@ -849,11 +849,11 @@
           {#each getTodosForDayTimed(dayMeta.date, todosByDayHour) as todo (todo.id)}
             {@const dateStr = formatDate(dayMeta.date)}
             {@const position = getEventPosition(todo, dateStr)}
-            {@const colors = getTodoColorFromTags(todo, $tagColors)}
+            {@const hue = getTodoHueFromTags(todo, $tagColors)}
             <TodoItem
               {todo}
               variant="calendar"
-              {colors}
+              {hue}
               {position}
               showOpenArrow={true}
               showResizeHandles={true}

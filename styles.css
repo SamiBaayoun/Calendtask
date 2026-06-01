@@ -346,3 +346,29 @@
   border-top: 1px solid var(--background-modifier-border);
 }
 
+
+/* ─── Event color system (oklch per-hue) ──────────────────────── */
+.theme-dark  .calendar-event,
+.theme-dark  .all-day-event,
+.theme-dark  .todo-item {
+  --ev-bg:     oklch(30% 0.055 var(--ev-hue));
+  --ev-text:   oklch(89% 0.03  var(--ev-hue));
+  --ev-accent: oklch(64% 0.15  var(--ev-hue));
+}
+.theme-light .calendar-event,
+.theme-light .all-day-event,
+.theme-light .todo-item {
+  --ev-bg:     oklch(92% 0.06  var(--ev-hue));
+  --ev-text:   oklch(40% 0.11  var(--ev-hue));
+  --ev-accent: oklch(54% 0.15  var(--ev-hue));
+}
+.calendar-event,
+.all-day-event,
+.todo-item {
+  background-color: var(--ev-bg);
+  color: var(--ev-text);
+  border-left-color: var(--ev-accent) !important;
+}
+.drop-preview {
+  background: color-mix(in srgb, var(--ev-bg, var(--interactive-accent)) 20%, transparent);
+}

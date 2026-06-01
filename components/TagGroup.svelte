@@ -7,7 +7,7 @@
   import type CalendTaskPlugin from '../main';
   import { collapsedTags, toggleTagCollapsed, tagColors, setTagColor } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { TODO_COLORS, getTodoHueFromTags } from '../utils/colors';
   import { activeTimer } from '../stores/timerStore';
 
   export let group: TagGroupType;
@@ -168,11 +168,11 @@
   {#if !isCollapsed}
     <div class="tag-todos">
       {#each visibleTodos as todo (todo.id)}
-        {@const colors = getTodoColorFromTags(todo, $tagColors)}
+        {@const hue = getTodoHueFromTags(todo, $tagColors)}
         <TodoItem
           {todo}
           variant="sidebar"
-          {colors}
+          {hue}
           priorityClass={getPriorityClass(todo.priority)}
           showPriority={!!todo.priority}
           showMeta={true}

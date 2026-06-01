@@ -19,6 +19,8 @@ export class CalendTaskView extends ItemView {
   calendarView: ReturnType<typeof CalendarView> | undefined;
   vaultSync: VaultSync;
   plugin: CalendTaskPlugin;
+  private unsubCalendarEvents: (() => void) | undefined;
+  private unsubTagColors: (() => void) | undefined;
 
   constructor(leaf: WorkspaceLeaf, plugin: CalendTaskPlugin) {
     super(leaf);
@@ -86,12 +88,12 @@ export class CalendTaskView extends ItemView {
     });
 
     // Subscribe to calendar events changes to persist them
-    calendarEvents.subscribe((events) => {
+    this.unsubCalendarEvents = calendarEvents.subscribe((events) => {
       void this.plugin.updateCalendarEvents(events);
     });
 
     // Subscribe to tag colors changes to persist them
-    tagColors.subscribe((colors) => {
+    this.unsubTagColors = tagColors.subscribe((colors) => {
       const tagColorsObj: Record<string, TodoColor> = {};
       colors.forEach((color, tag) => {
         tagColorsObj[tag] = color;
@@ -101,6 +103,10 @@ export class CalendTaskView extends ItemView {
   }
 
   async onClose() {
+    this.unsubCalendarEvents?.();
+    this.unsubTagColors?.();
+    this.vaultSync.unregisterWatchers();
+
     const promises: Promise<void>[] = [];
 
     if (this.todoColumn) {

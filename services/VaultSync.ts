@@ -1,4 +1,5 @@
-import { App, TFile, Notice } from 'obsidian';
+import { App, TFile, TAbstractFile, Notice } from 'obsidian';
+import type { EventRef } from 'obsidian';
 import { TodoParser } from './TodoParser';
 import type { Todo } from '../types';
 
@@ -11,6 +12,7 @@ export class VaultSync {
   private parser: TodoParser;
   private onTodosUpdate: (todos: Todo[]) => void;
   private todos: Todo[] = [];
+  private watcherRefs: EventRef[] = [];
 
   constructor(app: App, onTodosUpdate: (todos: Todo[]) => void) {
     this.app = app;
@@ -61,29 +63,34 @@ export class VaultSync {
    * Register file watchers for real-time synchronization
    */
   registerWatchers(): void {
-    // Watch for file modifications
-    this.app.vault.on('modify', async (file) => {
-      if (!(file instanceof TFile) || file.extension !== 'md') return;
-      await this.handleFileModify(file);
-    });
+    this.watcherRefs = [
+      this.app.vault.on('modify', async (file: TAbstractFile) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        await this.handleFileModify(file);
+      }),
+      this.app.vault.on('delete', (file: TAbstractFile) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        this.handleFileDelete(file);
+      }),
+      this.app.vault.on('rename', (file: TAbstractFile, oldPath: string) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        this.handleFileRename(file, oldPath);
+      }),
+      this.app.vault.on('create', async (file: TAbstractFile) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        await this.handleFileCreate(file);
+      }),
+    ];
+  }
 
-    // Watch for file deletions
-    this.app.vault.on('delete', (file) => {
-      if (!(file instanceof TFile) || file.extension !== 'md') return;
-      this.handleFileDelete(file);
-    });
-
-    // Watch for file renames
-    this.app.vault.on('rename', (file, oldPath) => {
-      if (!(file instanceof TFile) || file.extension !== 'md') return;
-      this.handleFileRename(file, oldPath);
-    });
-
-    // Watch for file creation
-    this.app.vault.on('create', async (file) => {
-      if (!(file instanceof TFile) || file.extension !== 'md') return;
-      await this.handleFileCreate(file);
-    });
+  /**
+   * Unregister all file watchers
+   */
+  unregisterWatchers(): void {
+    for (const ref of this.watcherRefs) {
+      this.app.vault.offref(ref);
+    }
+    this.watcherRefs = [];
   }
 
   /**

@@ -338,6 +338,11 @@
     align-items: flex-start;
   }
 
+  .all-day-event .item-content {
+    flex: 1;
+    overflow: hidden;
+  }
+
   .todo-item .item-content {
     align-items: flex-start;
   }
@@ -493,7 +498,11 @@
 
   .all-day-event .open-file-arrow {
     font-size: .9em;
-    opacity: .6;
+    opacity: 0;
+  }
+
+  .all-day-event:hover .open-file-arrow {
+    opacity: 1;
   }
 
   .open-file-arrow:hover {

@@ -12,9 +12,10 @@ export interface DragState {
 }
 
 export interface DropTarget {
-  day: number;    // index into daysMetadata
-  start: number;  // decimal hours, e.g. 14.5 = 14:30
+  day: number;       // index into daysMetadata
+  start: number;     // decimal hours, e.g. 14.5 = 14:30
   text: string;
+  isAllDay?: boolean;
 }
 
 export const dragState   = writable<DragState>({ task: null, active: false });

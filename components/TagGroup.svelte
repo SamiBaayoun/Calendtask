@@ -23,6 +23,11 @@
     ? group.todos.filter(todo => todo.status !== 'done')
     : group.todos).sort((a, b) => a.text.localeCompare(b.text, undefined, { sensitivity: 'base' }));
 
+  $: groupHue = (() => {
+    const color = $tagColors.get(group.tag);
+    return color ? (TODO_COLORS[color]?.hue ?? 275) : 275;
+  })();
+
   // S'abonner aux tags collapsed
   collapsedTags.subscribe(tags => {
     isCollapsed = tags.has(group.tag);
@@ -154,7 +159,12 @@
 
 <div class="tag-group">
   <div class="tag-header" on:click={handleToggle} role="button" tabindex="0">
-    <span class="tag-toggle">{isCollapsed ? '▶' : '▼'}</span>
+    <span class="tag-toggle" class:expanded={!isCollapsed}>
+      <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+        <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="tag-dot" style="--dot-hue: {groupHue}"></span>
     <span class="tag-name">
       {#if group.tag}
         {group.tag}
@@ -162,7 +172,7 @@
         No tag
       {/if}
     </span>
-    <span class="tag-count">({visibleTodos.length})</span>
+    <span class="tag-count">{visibleTodos.length}</span>
   </div>
 
   {#if !isCollapsed}
@@ -210,9 +220,22 @@
 
   .tag-toggle {
     flex-shrink: 0;
-    font-size: .8em;
+    display: flex;
+    align-items: center;
     color: var(--text-faint);
     transition: transform .2s ease;
+  }
+
+  .tag-toggle.expanded {
+    transform: rotate(90deg);
+  }
+
+  .tag-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: oklch(62% 0.15 var(--dot-hue));
   }
 
   .tag-name {

@@ -20,7 +20,7 @@
   import type { VaultSync } from '../services/VaultSync';
   import type CalendTaskPlugin from '../main';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { TODO_COLORS, getTodoHueFromTags } from '../utils/colors';
   import { CalendarTodoService } from '../services/CalendarTodoService';
   import { ICSParser } from '../services/ICSParser';
   import { Notice } from 'obsidian';
@@ -973,11 +973,11 @@
             {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
               {@const dateStr = formatDate(dayMeta.date)}
               {@const position = getEventPosition(todo, dateStr)}
-              {@const colors = getTodoColorFromTags(todo, $tagColors)}
+              {@const hue = getTodoHueFromTags(todo, $tagColors)}
               <TodoItem
                 {todo}
                 variant="calendar"
-                {colors}
+                {hue}
                 {position}
                 showOpenArrow={true}
                 showResizeHandles={true}
@@ -993,10 +993,10 @@
             {#if dropPreview && dropPreview.dayIndex === dayIndex && dropPreview.hour === hour}
               {@const previewPos = getPreviewPosition(dropPreview)}
               {#if previewPos}
-                {@const colors = getTodoColorFromTags(dropPreview.todo, $tagColors)}
+                {@const hue = getTodoHueFromTags(dropPreview.todo, $tagColors)}
                 <div
                   class="drop-preview"
-                  style="top: {previewPos.top}px; height: {previewPos.height}px; background-color: {colors.bg}; color: {colors.text};"
+                  style="top: {previewPos.top}px; height: {previewPos.height}px; --ev-hue: {hue};"
                 >
                   <div class="preview-content">
                     <span class="preview-text">{dropPreview.todo.text}</span>

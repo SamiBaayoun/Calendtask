@@ -6,7 +6,7 @@
   let {
     todo,
     variant = 'sidebar',
-    colors,
+    hue,
     position = undefined,
     priorityClass = '',
     showPriority = false,
@@ -21,7 +21,7 @@
   }: {
     todo: Todo;
     variant?: 'calendar' | 'allday' | 'sidebar';
-    colors: { bg: string; text: string };
+    hue: number;
     position?: { top: number; height: number; column?: number; totalColumns?: number };
     priorityClass?: string;
     showPriority?: boolean;
@@ -89,14 +89,11 @@
     ? (() => {
         const column = position.column ?? 0;
         const totalColumns = position.totalColumns ?? 1;
-
-        // Calculate width and left position for overlapping events
         const widthPercent = totalColumns > 1 ? (100 / totalColumns) : 100;
         const leftPercent = totalColumns > 1 ? (column * widthPercent) : 0;
-
-        return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${colors.bg}; color: ${colors.text};`;
+        return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; --ev-hue: ${hue};`;
       })()
-    : `background-color: ${colors.bg}; color: ${colors.text};`);
+    : `--ev-hue: ${hue};`);
 
   // Timer state
   let hasTimer = $derived($activeTimer?.todoId === todo.id);

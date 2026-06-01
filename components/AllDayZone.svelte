@@ -7,7 +7,7 @@
   import { todos as todosStore } from '../stores/todoStore';
   import { tagColors } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { getTodoColorFromTags } from '../utils/colors';
+  import { getTodoHueFromTags } from '../utils/colors';
 
   export let day: Date;
   export let todos: Todo[];
@@ -163,11 +163,11 @@
     <div class="all-day-placeholder">All day</div>
   {:else}
     {#each todos as todo (todo.id)}
-      {@const colors = getTodoColorFromTags(todo, $tagColors)}
+      {@const hue = getTodoHueFromTags(todo, $tagColors)}
       <TodoItem
         {todo}
         variant="allday"
-        {colors}
+        {hue}
         showOpenArrow={true}
         onToggleStatus={handleToggleStatus}
         onDoubleClick={handleEventDoubleClick}

@@ -1,62 +1,57 @@
 import type { TodoColor, Todo } from '../types';
 
 export const TODO_COLORS: Record<TodoColor, { name: string; bg: string; text: string }> = {
-  gray: {
-    name: 'Gris',
-    bg: '#9ca3af',
-    text: '#ffffff'
-  },
-  red: {
-    name: 'Rouge',
-    bg: '#fca5a5',
-    text: '#7f1d1d'
-  },
-  orange: {
-    name: 'Orange',
-    bg: '#fdba74',
-    text: '#7c2d12'
-  },
-  yellow: {
-    name: 'Jaune',
-    bg: '#fde047',
-    text: '#713f12'
-  },
-  green: {
-    name: 'Vert',
-    bg: '#86efac',
-    text: '#14532d'
+  indigo: {
+    name: 'Indigo',
+    bg: '#a5b4fc',
+    text: '#312e81'
   },
   blue: {
     name: 'Bleu',
     bg: '#93c5fd',
     text: '#1e3a8a'
   },
-  purple: {
-    name: 'Violet',
-    bg: '#c4b5fd',
-    text: '#4c1d95'
+  cyan: {
+    name: 'Cyan',
+    bg: '#67e8f9',
+    text: '#164e63'
   },
-  pink: {
-    name: 'Rose',
-    bg: '#f9a8d4',
-    text: '#831843'
+  green: {
+    name: 'Vert',
+    bg: '#86efac',
+    text: '#14532d'
+  },
+  citron: {
+    name: 'Citron',
+    bg: '#d9f99d',
+    text: '#365314'
+  },
+  amber: {
+    name: 'Ambre',
+    bg: '#fcd34d',
+    text: '#78350f'
+  },
+  coral: {
+    name: 'Corail',
+    bg: '#fdba74',
+    text: '#7c2d12'
+  },
+  magenta: {
+    name: 'Magenta',
+    bg: '#f0abfc',
+    text: '#701a75'
   }
 };
 
 export function getTodoColor(color?: TodoColor): { bg: string; text: string } {
-  return TODO_COLORS[color || 'gray'];
+  return TODO_COLORS[color as TodoColor] || TODO_COLORS.indigo;
 }
 
-/**
- * Retourne la couleur d'un todo basée sur ses tags et la map de couleurs de tags
- */
 export function getTodoColorFromTags(todo: Todo, tagColors: Map<string, TodoColor>): { bg: string; text: string } {
-  // Si le todo est calendar-only et a une couleur personnalisée, utiliser cette couleur
   if (todo.isCalendarOnly && todo.color) {
     return TODO_COLORS[todo.color];
   }
 
-  // Si le todo a des tags, utiliser la couleur du premier tag qui a une couleur
   if (todo.tags && todo.tags.length > 0) {
     for (const tag of todo.tags) {
       const color = tagColors.get(tag);
@@ -65,13 +60,11 @@ export function getTodoColorFromTags(todo: Todo, tagColors: Map<string, TodoColo
       }
     }
   } else {
-    // Si le todo n'a pas de tags, vérifier s'il y a une couleur définie pour les todos sans tag (clé vide)
     const noTagColor = tagColors.get('');
     if (noTagColor) {
       return TODO_COLORS[noTagColor];
     }
   }
 
-  // Par défaut : gris
-  return TODO_COLORS.gray;
+  return TODO_COLORS.indigo;
 }

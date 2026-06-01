@@ -101,7 +101,7 @@
 <style>
   .todo-column {
     width: 250px;
-    padding: 10px;
+    padding: 0;
     border-right: 1px solid var(--background-modifier-border);
     background-color: var(--background-secondary);
     overflow-y: auto;
@@ -110,7 +110,7 @@
   }
 
   .todo-header {
-    margin-bottom: 15px;
+    padding: 14px 14px 12px;
   }
 
   .header-row {
@@ -122,8 +122,10 @@
 
   .todo-header h3 {
     margin: 0;
-    font-size: 1.2em;
+    font-size: var(--ct-fs-title, 1.15em);
     font-weight: 600;
+    letter-spacing: -.01em;
+    color: var(--text-normal);
   }
 
   .menu-container {
@@ -133,21 +135,20 @@
 
   .menu-btn {
     background: transparent;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 5px 8px;
     cursor: pointer;
-    font-size: 1.2em;
+    font-size: 1.1em;
     line-height: 1;
-    transition: all 0.15s ease;
-    opacity: 0.7;
-    color: var(--text-normal);
+    transition: background .12s, color .12s, border-color .12s;
+    color: var(--text-muted);
   }
 
   .menu-btn:hover {
-    opacity: 1;
-    border-color: var(--interactive-accent);
-    background-color: var(--background-modifier-hover);
+    background: var(--background-modifier-hover);
+    border-color: var(--background-modifier-border);
+    color: var(--text-normal);
   }
 
   .dropdown-menu {
@@ -156,11 +157,10 @@
     right: 0;
     background-color: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    border-radius: var(--ct-radius, 8px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, .4), 0 2px 8px rgba(0, 0, 0, .2);
     z-index: 1000;
-    min-width: 220px;
-    overflow: hidden;
+    min-width: 232px;
     padding: 6px;
   }
 
@@ -168,16 +168,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     width: 100%;
-    padding: 12px 14px;
+    padding: 9px 10px;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     color: var(--text-normal);
-    font-size: 0.9em;
+    font-size: var(--ct-fs-ui, 0.875em);
     text-align: left;
-    transition: background-color 0.15s ease;
+    transition: background .12s;
   }
 
   .menu-item:hover {
@@ -192,11 +193,11 @@
   /* Toggle Switch */
   .toggle-switch {
     position: relative;
-    width: 36px;
-    height: 20px;
+    width: 34px;
+    height: 19px;
     background-color: var(--background-modifier-border);
     border-radius: 10px;
-    transition: background-color 0.25s ease;
+    transition: background-color .25s ease;
     flex-shrink: 0;
   }
 
@@ -208,36 +209,40 @@
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 16px;
-    height: 16px;
-    background-color: white;
+    width: 15px;
+    height: 15px;
+    background-color: var(--background-primary);
     border-radius: 50%;
-    transition: transform 0.25s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform .25s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
   }
 
   .toggle-switch.active .toggle-thumb {
-    transform: translateX(16px);
+    transform: translateX(15px);
   }
 
   .search-input {
     width: 100%;
-    padding: 8px 10px;
+    box-sizing: border-box;
+    padding: 7px 10px;
     border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    background-color: var(--background-secondary);
+    border-radius: var(--ct-radius-sm, 6px);
+    background-color: var(--background-primary);
     color: var(--text-normal);
-    font-size: 0.9em;
+    font-size: var(--ct-fs-ui, 0.875em);
+    transition: border-color .12s, box-shadow .12s;
   }
 
   .search-input:focus {
     outline: none;
     border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
   }
 
   .todo-list {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    padding: 4px 10px 16px;
   }
 </style>

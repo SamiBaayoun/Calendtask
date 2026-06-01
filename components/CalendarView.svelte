@@ -56,6 +56,18 @@
   let todayDayIndex = $state(-1);
   let currentTimeString = $state('');
 
+  let weekLabel = $derived.by(() => {
+    const days = $daysInWeek;
+    if (!days || days.length === 0) return '';
+    const start = days[0];
+    const end = days[days.length - 1];
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return `${start.toLocaleDateString('en-US', { month: 'short' })} ${start.getDate()} – ${end.getDate()}`;
+    }
+    return `${fmt(start)} – ${fmt(end)}`;
+  });
+
   // Helper function to get the effective time for a todo (considers resize state)
   function getEffectiveTime(todo: Todo): string | undefined {
     // If this todo is being resized and we have a new time in visual state
@@ -748,48 +760,67 @@
 
 <div class="calendar-container">
   <div class="calendar-header">
-    <div>
-      <div class="calendar-navigation">
-        <button on:click={goToPreviousWeek} class="nav-button">&lt;</button>
-        <button on:click={goToToday} class="nav-button">Today</button>
-        <button on:click={goToNextWeek} class="nav-button">&gt;</button>
-      </div>
-      <h2 class="current-week-display">
-        {$currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-      </h2>
-    </div>
-    <div class="calendar-actions">
-      <div class="calendar-view-selector">
-        <button
-          on:click={() => setCalendarView('day')}
-          class="view-button"
-          class:active={$calendarView === 'day'}
-        >
-          Day
-        </button>
-        <button
-          on:click={() => setCalendarView('threeDays')}
-          class="view-button"
-          class:active={$calendarView === 'threeDays'}
-        >
-          3 Days
-        </button>
-        <button
-          on:click={() => setCalendarView('week')}
-          class="view-button"
-          class:active={$calendarView === 'week'}
-        >
-          Week
-        </button>
-      </div>
-      <button on:click={handleICSImport} class="import-ics-button" title="Import ICS calendar">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
+    <div class="nav-group">
+      <div class="nav-button icon-only" role="button" tabindex="0" aria-label="Semaine précédente"
+        on:click={goToPreviousWeek}
+        on:keydown={(e) => e.key === 'Enter' && goToPreviousWeek()}>
+        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
+          <path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Import ICS
-      </button>
+      </div>
+      <div class="nav-button" role="button" tabindex="0"
+        on:click={goToToday}
+        on:keydown={(e) => e.key === 'Enter' && goToToday()}>Today</div>
+      <div class="nav-button icon-only" role="button" tabindex="0" aria-label="Semaine suivante"
+        on:click={goToNextWeek}
+        on:keydown={(e) => e.key === 'Enter' && goToNextWeek()}>
+        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
+          <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="week-label">{weekLabel}</div>
+
+    <div class="cal-head-spacer"></div>
+
+    <div class="view-selector" role="tablist">
+      <div
+        class="view-button"
+        class:active={$calendarView === 'day'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'day'}
+        on:click={() => setCalendarView('day')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('day')}
+      >Day</div>
+      <div
+        class="view-button"
+        class:active={$calendarView === 'threeDays'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'threeDays'}
+        on:click={() => setCalendarView('threeDays')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('threeDays')}
+      >3 Days</div>
+      <div
+        class="view-button"
+        class:active={$calendarView === 'week'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'week'}
+        on:click={() => setCalendarView('week')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('week')}
+      >Week</div>
+    </div>
+
+    <div class="import-ics-button" role="button" tabindex="0" title="Import ICS calendar"
+      on:click={handleICSImport}
+      on:keydown={(e) => e.key === 'Enter' && handleICSImport()}>
+      <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+        <path d="M8 11V4M5 6.5L8 3.5l3 3M3.5 12.5h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Import ICS
     </div>
   </div>
 

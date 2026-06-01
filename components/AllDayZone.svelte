@@ -180,20 +180,20 @@
 
 <style>
   .all-day-zone {
-    min-height: 40px;
+    min-height: 38px;
     padding: 4px;
     background-color: var(--background-primary);
     border-bottom: 1px solid var(--background-modifier-border);
+    border-left: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }
 
   .all-day-placeholder {
     color: var(--text-faint);
-    font-size: 0.75em;
-    text-align: center;
-    padding: 8px;
+    font-size: 0.72em;
+    padding: 4px 6px;
     font-style: italic;
   }
 </style>

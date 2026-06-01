@@ -4,6 +4,17 @@ import type { CalendarEvent, Todo, TodoColor } from './types';
 import { TimerService } from './services/TimerService';
 import type { TimerState } from './stores/timerStore';
 
+const COLOR_MIGRATION: Record<string, TodoColor> = {
+  gray:   'indigo',
+  red:    'coral',
+  orange: 'amber',
+  yellow: 'citron',
+  green:  'green',
+  blue:   'blue',
+  purple: 'indigo',
+  pink:   'magenta',
+};
+
 interface CalendTaskSettings {
 	defaultDuration: number;
 	weekStartDay: 'monday' | 'sunday';
@@ -42,6 +53,7 @@ export default class CalendTaskPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		await this.loadPluginData();
+		await this.migrateColors();
 
 		// Initialize timer service
 		this.timerService = new TimerService(this);
@@ -102,6 +114,30 @@ export default class CalendTaskPlugin extends Plugin {
 	async loadPluginData() {
 		const loadedData = await this.loadData();
 		this.data = Object.assign({}, DEFAULT_DATA, loadedData);
+	}
+
+	async migrateColors() {
+		let dirty = false;
+
+		for (const todo of this.data.calendarOnlyTodos) {
+			if (todo.color && COLOR_MIGRATION[todo.color]) {
+				todo.color = COLOR_MIGRATION[todo.color];
+				dirty = true;
+			}
+		}
+
+		const tagColors = this.data.uiState.tagColors;
+		if (tagColors) {
+			for (const key of Object.keys(tagColors)) {
+				const old = tagColors[key];
+				if (old && COLOR_MIGRATION[old]) {
+					tagColors[key] = COLOR_MIGRATION[old];
+					dirty = true;
+				}
+			}
+		}
+
+		if (dirty) await this.savePluginData();
 	}
 
 	async savePluginData() {

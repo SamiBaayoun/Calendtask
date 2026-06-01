@@ -28,6 +28,19 @@ export function dragToCalendar(node: HTMLElement, task: DragTask) {
         }
         if (!active) return;
 
+        // Priorité : zone all-day
+        const allDayZones = Array.from(document.querySelectorAll<HTMLElement>('.all-day-zone'));
+        const allDayZone = allDayZones.find(zone => {
+          const r = zone.getBoundingClientRect();
+          return ev.clientX >= r.left && ev.clientX <= r.right
+              && ev.clientY >= r.top  && ev.clientY <= r.bottom;
+        });
+        if (allDayZone) {
+          const day = allDayZones.indexOf(allDayZone);
+          dropTarget.set({ day, start: 0, text: currentTask.title, isAllDay: true });
+          return;
+        }
+
         const el  = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
         const col = el?.closest('.day-col') as HTMLElement | null;
         if (col && col.dataset.day != null) {

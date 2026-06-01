@@ -8,10 +8,14 @@
   import { tagColors } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
   import { getTodoHueFromTags } from '../utils/colors';
+  import { dropTarget } from '../stores/dragStore';
 
   export let day: Date;
+  export let dayIndex: number = -1;
   export let todos: Todo[];
   export let hideLabel: boolean = false;
+
+  $: isDragTarget = $dropTarget?.isAllDay === true && $dropTarget?.day === dayIndex;
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
@@ -154,6 +158,7 @@
 
 <div
   class="all-day-zone"
+  class:drag-over={isDragTarget}
   on:dragover={handleDragOver}
   on:drop={handleDrop}
   role="region"
@@ -188,6 +193,12 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+  }
+
+  .all-day-zone.drag-over {
+    background-color: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+    outline: 1px dashed var(--interactive-accent);
+    outline-offset: -1px;
   }
 
   .all-day-placeholder {

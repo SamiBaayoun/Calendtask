@@ -172,13 +172,27 @@
     const dayMeta = daysMetadata[target.day];
     if (!dayMeta) return;
 
+    const dateStr = formatDate(dayMeta.date);
+    const todo = $todos.find(t => t.id === task.id);
+    if (!todo) return;
+
+    // Dépôt dans la zone all-day : supprimer heure et durée
+    if (target.isAllDay) {
+      const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
+      if (isCalendarOnly) {
+        calendarOnlyTodos.update(ts => ts.map(t =>
+          t.id === todo.id ? { ...t, date: dateStr, time: undefined, duration: undefined } : t
+        ));
+        await plugin.updateCalendarOnlyTodo(todo.id, { date: dateStr, time: undefined, duration: undefined });
+      } else {
+        await vaultSync.updateTodoInVault(todo, { date: dateStr, time: undefined, duration: undefined });
+      }
+      return;
+    }
+
     const h = Math.floor(target.start);
     const m = Math.round((target.start - h) * 60);
     const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    const dateStr = formatDate(dayMeta.date);
-
-    const todo = $todos.find(t => t.id === task.id);
-    if (!todo) return;
 
     const duration = todo.duration || 60;
     if (h * 60 + m + duration > 1439) return;
@@ -838,8 +852,8 @@
 
       <!-- Zone All-Day -->
       <div class="time-column-all-day">Toute la journée</div>
-      {#each daysMetadata as dayMeta (dayMeta.timestamp)}
-        <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
+      {#each daysMetadata as dayMeta, i (dayMeta.timestamp)}
+        <AllDayZone day={dayMeta.date} dayIndex={i} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
       {/each}
     </div>
 

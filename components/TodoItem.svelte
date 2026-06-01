@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { Todo } from '../types';
   import { activeTimer, timerElapsedTime, formatTimerDuration } from '../stores/timerStore';
+  import { dragToCalendar } from '../utils/dragToCalendar';
+  import type { DragTask } from '../stores/dragStore';
 
   // Props
   let {
     todo,
     variant = 'sidebar',
-    colors,
+    hue,
     position = undefined,
     priorityClass = '',
     showPriority = false,
@@ -21,7 +23,7 @@
   }: {
     todo: Todo;
     variant?: 'calendar' | 'allday' | 'sidebar';
-    colors: { bg: string; text: string };
+    hue: number;
     position?: { top: number; height: number; column?: number; totalColumns?: number };
     priorityClass?: string;
     showPriority?: boolean;
@@ -30,10 +32,15 @@
     showResizeHandles?: boolean;
     onToggleStatus?: (event: MouseEvent, todo: Todo) => void;
     onDoubleClick?: (todo: Todo) => void;
-    onDragStart?: (event: DragEvent, todo: Todo) => void;
     onContextMenu?: (event: MouseEvent, todo: Todo) => void;
     onResizeMouseDown?: (event: MouseEvent, todo: Todo, type: 'top' | 'bottom') => void;
   } = $props();
+
+  let dragTask = $derived<DragTask>({
+    id: todo.id,
+    title: todo.text,
+    durationMinutes: todo.duration,
+  });
 
   // Check if todo is calendar-only
   let isCalendarOnly = $derived(todo.isCalendarOnly === true);
@@ -84,19 +91,18 @@
                            variant === 'allday' ? 'all-day-event' :
                            'todo-item');
 
-  // Compute style
+  // Compute style — colours are passed as CSS custom properties so the
+  // stylesheet decides where to apply them (calendar/allday only, not sidebar).
   let itemStyle = $derived(variant === 'calendar' && position
     ? (() => {
         const column = position.column ?? 0;
         const totalColumns = position.totalColumns ?? 1;
-
-        // Calculate width and left position for overlapping events
         const widthPercent = totalColumns > 1 ? (100 / totalColumns) : 100;
         const leftPercent = totalColumns > 1 ? (column * widthPercent) : 0;
 
-        return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${colors.bg}; color: ${colors.text};`;
+        return `top: ${position.top}px; height: ${position.height}px; left: ${leftPercent}%; width: ${widthPercent}%; --ev-hue: ${hue};`;
       })()
-    : `background-color: ${colors.bg}; color: ${colors.text};`);
+    : `--ev-hue: ${hue};`);
 
   // Timer state
   let hasTimer = $derived($activeTimer?.todoId === todo.id);
@@ -119,9 +125,9 @@
     const resizeZone = 10; // 10px zone at top and bottom
 
     if (y <= resizeZone) {
-      currentCursor = 'ns-resize';
+      currentCursor = 'grabbing';
     } else if (y >= height - resizeZone) {
-      currentCursor = 'ns-resize';
+      currentCursor = 'grabbing';
     } else {
       currentCursor = 'grab';
     }
@@ -157,8 +163,7 @@
   class:completed={todo.status === 'done'}
   class:has-active-timer={hasTimer}
   style="{itemStyle} cursor: {currentCursor};"
-  draggable="true"
-  on:dragstart={(e) => onDragStart?.(e, todo)}
+  use:dragToCalendar={dragTask}
   on:contextmenu={(e) => onContextMenu?.(e, todo)}
   on:mousemove={handleMouseMove}
   on:mousedown={handleMouseDown}
@@ -208,107 +213,118 @@
 </div>
 
 <style>
-  /* Base styles */
-  .calendar-event,
-  .all-day-event,
+  /* ─── Priority tokens (local --prio var per priority class) ── */
+  .priority-critical { --prio: var(--ct-priority-critical, #e05561); }
+  .priority-high     { --prio: var(--ct-priority-high,     #d98a37); }
+  .priority-medium   { --prio: var(--ct-priority-medium,   #c9a227); }
+  .priority-low      { --prio: var(--ct-priority-low,      #4a9d6a); }
+
+  /* ─── Sidebar todo item ──────────────────────────────────── */
   .todo-item {
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 0.8em;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    /* Priority wins → tag colour → neutral border */
+    border-left: 3px solid var(--prio, var(--ev-bg, var(--background-modifier-border)));
+    border-radius: var(--ct-radius-sm, 6px);
+    padding: 9px 11px;
+    cursor: grab;
+    transition: background .12s, border-color .12s;
   }
 
-  /* Calendar event specific */
+  .todo-item:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  .todo-item:active {
+    cursor: grabbing;
+  }
+
+  .todo-item.completed {
+    opacity: .7;
+  }
+
+  .todo-item.has-active-timer {
+    border-left-color: var(--ct-timer-active, #22c55e) !important;
+    border-left-width: 4px !important;
+  }
+
+  .todo-item.has-active-timer.paused {
+    border-left-color: var(--ct-timer-paused, var(--text-faint)) !important;
+  }
+
+  /* ─── Calendar event ─────────────────────────────────────── */
   .calendar-event {
-    margin: 2px;
+    margin: 1px;
     position: absolute;
-    /* width is set via inline style for overlap handling */
     overflow: visible;
     z-index: 1;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-    border-left: 3px solid rgba(0, 0, 0, 0.15);
+    border-radius: var(--ct-radius-sm, 6px);
+    padding: 5px 7px;
+    font-size: 0.78em;
+    font-weight: 500;
+    background-color: var(--ev-bg);
+    color: var(--ev-text);
+    border-left: 3px solid rgba(0, 0, 0, .22);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .07);
     display: flex;
     flex-direction: column;
-  }
-
-  .calendar-event .item-content {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    cursor: grab;
+    transition: box-shadow .12s;
   }
 
   .calendar-event:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    z-index: 2;
-    filter: brightness(0.95);
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .25),
+                inset 0 0 0 1px rgba(0, 0, 0, .1);
+    z-index: 3;
   }
 
   .calendar-event:active {
     cursor: grabbing;
   }
 
-  /* All-day event specific */
+  .calendar-event.completed {
+    opacity: .55;
+  }
+
+  .calendar-event.completed .item-text {
+    text-decoration: line-through;
+  }
+
+  .calendar-event.just-dropped {
+    animation: just-dropped .7s ease;
+  }
+
+  @keyframes just-dropped {
+    from { box-shadow: 0 0 0 2px var(--interactive-accent); }
+    to   { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .07); }
+  }
+
+  /* ─── All-day event ──────────────────────────────────────── */
   .all-day-event {
-    font-size: 0.8em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border-radius: 3px;
-    padding: 4px 8px;
+    border-radius: 4px;
+    padding: 3px 8px;
+    background-color: var(--ev-bg);
+    color: var(--ev-text);
+    border-left: 3px solid rgba(0, 0, 0, .22);
+    transition: opacity .12s;
   }
 
   .all-day-event:hover {
-    opacity: 0.9;
+    opacity: .9;
   }
 
-  /* Todo item (sidebar) specific */
-  .todo-item {
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-left: 3px solid rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    padding: 10px 12px;
-    cursor: grab;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  }
-
-  .todo-item:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-    transform: translateY(-1px);
-    filter: brightness(0.95);
-  }
-
-  .todo-item:active {
-    cursor: grabbing;
-    transform: translateY(0);
-  }
-
-  /* Priority colors for sidebar */
-  .todo-item.priority-critical {
-    border-left-color: #ff4444;
-  }
-
-  .todo-item.priority-high {
-    border-left-color: #ff9800;
-  }
-
-  .todo-item.priority-medium {
-    border-left-color: #ffeb3b;
-  }
-
-  .todo-item.priority-low {
-    border-left-color: #4caf50;
-  }
-
-  /* Completed state */
-  .calendar-event.completed,
   .all-day-event.completed {
-    opacity: 0.6;
+    opacity: .6;
   }
 
-  /* Content layout */
+  /* ─── Shared content layout ──────────────────────────────── */
   .item-content {
     display: flex;
     align-items: center;
@@ -322,32 +338,45 @@
     align-items: flex-start;
   }
 
+  .all-day-event .item-content {
+    flex: 1;
+    overflow: hidden;
+  }
+
   .todo-item .item-content {
     align-items: flex-start;
   }
 
-  /* Checkbox */
+  /* ─── Checkbox ───────────────────────────────────────────── */
   .item-checkbox {
     appearance: none;
     -webkit-appearance: none;
     width: 18px;
     height: 18px;
-    cursor: pointer;
     flex-shrink: 0;
-    border-radius: 3px;
-    border: 1px solid var(--text-normal);
+    border-radius: 5px;
+    border: 1.5px solid var(--text-faint);
     background-color: var(--background-primary);
-    transition: all 0.15s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color .12s, background .12s, transform .1s;
     position: relative;
   }
 
   .all-day-event .item-checkbox {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
   }
 
   .todo-item .item-checkbox {
     margin-top: 2px;
+  }
+
+  .item-checkbox:hover {
+    border-color: var(--interactive-accent);
+    transform: scale(1.08);
   }
 
   .item-checkbox:checked {
@@ -362,20 +391,15 @@
     left: 50%;
     transform: translate(-50%, -50%);
     color: white;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
   }
 
   .all-day-event .item-checkbox:checked::after {
-    font-size: 11px;
+    font-size: 9px;
   }
 
-  .item-checkbox:hover {
-    border-color: var(--interactive-accent);
-    transform: scale(1.1);
-  }
-
-  /* Text */
+  /* ─── Text ───────────────────────────────────────────────── */
   .item-text {
     flex-grow: 1;
     overflow: hidden;
@@ -384,15 +408,14 @@
   }
 
   .calendar-event .item-text {
-    /* Allow text wrapping that adapts to available height */
     white-space: normal;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    /* Use webkit line clamp to truncate with ellipsis if text exceeds height */
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 10; /* Max lines before truncating */
-    line-height: 1.3;
+    -webkit-line-clamp: 3;
+    line-height: 1.25;
+    margin-top: 1px;
   }
 
   .all-day-event .item-text {
@@ -400,56 +423,42 @@
   }
 
   .todo-item .item-text {
-    font-size: 0.9em;
+    font-size: var(--ct-fs-small, 0.8em);
     line-height: 1.4;
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: normal;
+    color: var(--text-normal);
   }
 
   .item-text.completed {
     text-decoration: line-through;
+    color: var(--text-muted);
   }
 
-  .todo-item .item-text.completed {
-    opacity: 0.6;
-  }
-
-  /* Priority badge (sidebar only) */
+  /* ─── Priority badge ─────────────────────────────────────── */
   .priority-badge {
-    font-size: 0.7em;
-    font-weight: 700;
-    padding: 3px 6px;
+    font-size: 0;
+    padding: 2px 6px;
     border-radius: 4px;
-    background-color: var(--background-modifier-border);
-    letter-spacing: 0.3px;
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--prio, var(--text-muted)) 16%, transparent);
+    flex-shrink: 0;
   }
 
-  .priority-critical .priority-badge {
-    background-color: #ff4444;
-    color: white;
-    box-shadow: 0 1px 3px rgba(255, 68, 68, 0.3);
+  .priority-badge::after {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: var(--prio, var(--text-muted));
   }
 
-  .priority-high .priority-badge {
-    background-color: #ff9800;
-    color: white;
-    box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
-  }
+  .priority-critical .priority-badge::after { content: 'CRITICAL'; }
+  .priority-high     .priority-badge::after { content: 'HIGH'; }
+  .priority-medium   .priority-badge::after { content: 'MEDIUM'; }
+  .priority-low      .priority-badge::after { content: 'LOW'; }
 
-  .priority-medium .priority-badge {
-    background-color: #ffeb3b;
-    color: #333;
-    box-shadow: 0 1px 3px rgba(255, 235, 59, 0.3);
-  }
-
-  .priority-low .priority-badge {
-    background-color: #4caf50;
-    color: white;
-    box-shadow: 0 1px 3px rgba(76, 175, 80, 0.3);
-  }
-
-  /* Meta badges (sidebar only) */
+  /* ─── Meta badges (sidebar) ──────────────────────────────── */
   .todo-meta {
     margin-top: 6px;
     display: flex;
@@ -462,89 +471,79 @@
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 500;
-    background-color: rgba(0, 0, 0, 0.1);
     white-space: nowrap;
+    color: var(--text-muted);
+    background-color: var(--background-modifier-border);
   }
 
-  .meta-date {
-    background-color: rgba(59, 130, 246, 0.15);
-  }
+  .meta-date     { background-color: color-mix(in srgb, #3b82f6 15%, transparent); color: var(--text-normal); }
+  .meta-time     { background-color: color-mix(in srgb, #a855f7 15%, transparent); color: var(--text-normal); }
+  .meta-duration { background-color: color-mix(in srgb, #22c55e 15%, transparent); color: var(--text-normal); }
 
-  .meta-time {
-    background-color: rgba(168, 85, 247, 0.15);
-  }
-
-  .meta-duration {
-    background-color: rgba(34, 197, 94, 0.15);
-  }
-
-  /* Open file arrow */
+  /* ─── Open file arrow ────────────────────────────────────── */
   .open-file-arrow {
     flex-shrink: 0;
-    font-size: 1.1em;
+    font-size: 1em;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: transform .2s, opacity .12s;
     padding-left: 4px;
     user-select: none;
+    opacity: 0;
+    color: var(--text-faint);
+  }
+
+  .todo-item:hover .open-file-arrow {
+    opacity: 1;
   }
 
   .all-day-event .open-file-arrow {
-    font-size: 0.9em;
+    font-size: .9em;
+    opacity: 0;
+  }
+
+  .all-day-event:hover .open-file-arrow {
+    opacity: 1;
   }
 
   .open-file-arrow:hover {
     transform: translateX(2px);
+    color: var(--interactive-accent);
   }
 
-  /* Timer badge */
+  /* ─── Timer badge ────────────────────────────────────────── */
   .timer-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 3px 8px;
     border-radius: 12px;
-    font-size: 0.75em;
+    font-size: .75em;
     font-weight: 600;
-    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    background: var(--ct-timer-active, #22c55e);
     color: white;
-    box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
+    box-shadow: 0 2px 4px rgba(34, 197, 94, .3);
     animation: pulse-timer 2s ease-in-out infinite;
     flex-shrink: 0;
   }
 
   .timer-badge.paused {
-    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-    box-shadow: 0 2px 4px rgba(100, 116, 139, 0.3);
+    background: var(--ct-timer-paused, var(--text-faint));
+    box-shadow: none;
     animation: none;
   }
 
   .timer-icon {
-    font-size: 0.9em;
+    font-size: .9em;
     line-height: 1;
   }
 
   .timer-time {
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.5px;
+    letter-spacing: .5px;
   }
 
   @keyframes pulse-timer {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.9;
-      transform: scale(1.02);
-    }
-  }
-
-  .has-active-timer {
-    border-left-color: #22c55e !important;
-    border-left-width: 4px !important;
-  }
-
-  .has-active-timer.paused {
-    border-left-color: #64748b !important;
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: .9; transform: scale(1.02); }
   }
 </style>

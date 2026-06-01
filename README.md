@@ -1,165 +1,79 @@
 # CalendTask
 
-A powerful Obsidian plugin that combines task management with a visual weekly calendar. Schedule your tasks with drag-and-drop, manage priorities, and track time—all within your Obsidian vault.
+An Obsidian plugin that adds a weekly calendar view to your vault. You can drag tasks from a sidebar onto time slots, resize them, and edit them — everything stays in your markdown files.
 
-## Features
+I built this because I wanted to see my tasks in a calendar without leaving Obsidian or syncing with an external service.
 
-### 📅 Weekly Calendar View
-- **Visual scheduling**: Drag tasks from the sidebar onto specific time slots
-- **All-day events**: Dedicated zone for tasks without specific times
-- **Time slots**: Hourly grid with 30-minute snap increments
-- **Current time indicator**: Real-time visual marker showing the current time
-- **Today highlighting**: Clear visual distinction of the current day
+## What it does
 
-### ✅ Task Management
-- **Checkbox completion**: Mark tasks as done directly from any view
-- **Hide completed**: Toggle to show/hide completed tasks
-- **Priority levels**: Critical, High, Medium, Low with color-coded badges
-- **Search**: Quickly filter tasks by text, tags, or priority
-- **Tag grouping**: Organize tasks by tags in the sidebar
-- **Smart filtering**: Sidebar shows only unscheduled tasks
+The main view is a weekly grid with an "All-day" zone at the top and hourly slots below. Tasks without a scheduled time sit in a sidebar on the left, and you drag them onto the calendar when you're ready to place them.
 
-### 🎨 Visual Customization
-- **Tag-based colors**: Assign custom colors to tags for better organization
-- **Color-coded tasks**: Visual distinction based on tag colors
-- **Priority indicators**: Left border colors showing task priority
-- **Drag preview**: See exactly where tasks will be placed while dragging
+A few things worth knowing:
 
-### ⏱️ Time Management
-- **Duration tracking**: Set and visualize task duration
-- **Resizable events**: Adjust duration with drag handles (top/bottom)
-- **Time display**: Clear time and duration indicators on calendar events
-- **Metadata support**: Date (📅), Time (🕐), and Duration (⏱) badges
+- Tasks are stored as plain markdown — CalendTask reads and writes directly to your files using the [Obsidian Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) emoji format
+- You can resize events by dragging the top or bottom edge
+- Right-clicking a task lets you assign a color to its tag, which applies everywhere that tag appears
+- Double-clicking a task opens the source file at that line
 
-### 🔄 Obsidian Tasks Integration
-- Compatible with [Obsidian Tasks plugin](https://github.com/obsidian-tasks-group/obsidian-tasks) format
-- Uses emoji-based metadata: `⏳ YYYY-MM-DD`, `⏰ HH:mm`, `⏱ Xmin`
-- Preserves task format in your markdown files
-- Direct file editing: Double-click tasks to jump to source file
+## Task format
+
+```markdown
+- [ ] Review PR #42 #work ⏳ 2025-01-15 ⏰ 14:00 ⏱ 45min
+- [ ] Call dentist !high ⏳ 2025-01-15
+- [x] Done task #personal ⏳ 2025-01-14
+```
+
+| Field | Syntax | Notes |
+|-------|--------|-------|
+| Date | `⏳ YYYY-MM-DD` | Required for the task to appear on the calendar |
+| Time | `⏰ HH:mm` | Without this, goes to All-day zone |
+| Duration | `⏱ 45min` or `⏱ 1.5h` | Defaults to 30min if not set |
+| Priority | `!critical` `!high` `!medium` `!low` | Shows as a colored left border |
+| Tags | `#tagname` | Used for grouping and color assignment |
 
 ## Installation
 
-### From Obsidian Community Plugins (Coming Soon)
-1. Open Settings → Community Plugins
-2. Browse for "CalendTask"
-3. Click Install, then Enable
+### Manual (for now)
 
-### Manual Installation
 1. Download `main.js`, `styles.css`, and `manifest.json` from the [latest release](https://github.com/SamiBaayoun/Calendtask/releases)
-2. Create a folder `VaultFolder/.obsidian/plugins/calendtask/`
-3. Copy the downloaded files into this folder
-4. Reload Obsidian
-5. Enable CalendTask in Settings → Community Plugins
+2. Create `.obsidian/plugins/calendtask/` in your vault
+3. Copy the three files in
+4. Reload Obsidian and enable the plugin in Settings → Community Plugins
 
-## Usage
+Community plugin submission is planned once the plugin is more stable.
 
-### Opening CalendTask
-- Click the calendar icon in the left ribbon, or
-- Use the command palette: "CalendTask: Open calendar view"
+### Opening the view
 
-### Creating Tasks
-Create tasks in any markdown file using the Obsidian Tasks format:
-```markdown
-- [ ] My task #tag ⏳ 2025-01-15 ⏰ 14:00 ⏱ 60min
-- [ ] High priority task !high
-- [ ] All-day event ⏳ 2025-01-15
-```
-
-### Scheduling Tasks
-1. **From sidebar to calendar**: Drag unscheduled tasks onto time slots
-2. **Within calendar**: Drag events to reschedule
-3. **To all-day zone**: Drag events to the top "All-day" area
-4. **Adjust duration**: Drag the top or bottom edge of calendar events
-
-### Task Completion
-- Click the checkbox on any task to mark it as done
-- Use the eye icon (👁️) in the sidebar to hide/show completed tasks
-
-### Customization
-- **Tag colors**: Right-click any task → "Couleur pour #tag" → Choose a color
-- **Collapse groups**: Click on tag headers to collapse/expand task groups
-- **Search**: Use the search box in the sidebar to filter tasks
-
-### Context Menu Options
-Right-click on any task to:
-- Change tag color
-- Remove from calendar
-- Open source file
-
-## Task Format
-
-CalendTask supports the following task metadata:
-
-| Metadata | Format | Example | Description |
-|----------|--------|---------|-------------|
-| Date | `⏳ YYYY-MM-DD` | `⏳ 2025-01-15` | Schedule date |
-| Time | `⏰ HH:mm` | `⏰ 14:30` | Start time |
-| Duration | `⏱ Xmin` or `⏱ Xh` | `⏱ 90min` or `⏱ 1.5h` | Task duration |
-| Priority | `!critical`, `!high`, `!medium`, `!low` | `!high` | Priority level |
-| Tags | `#tagname` | `#work #urgent` | Task categorization |
-| Status | `- [ ]` or `- [x]` | `- [x]` | Completion status |
+Click the calendar icon in the left ribbon, or run `CalendTask: Open calendar view` from the command palette.
 
 ## Development
 
-### Prerequisites
-- Node.js v16 or higher
-- npm or yarn
-
-### Setup
 ```bash
-# Clone the repository
 git clone https://github.com/SamiBaayoun/Calendtask.git
 cd Calendtask
-
-# Install dependencies
 npm install
-
-# Build in watch mode
-npm run dev
-
-# Production build
-npm run build
+npm run dev   # watch mode
+npm run build # production
 ```
 
-### Project Structure
-```
-calendtask/
-├── components/           # Svelte 5 components
-│   ├── CalendarView.svelte
-│   ├── TodoColumn.svelte
-│   ├── TagGroup.svelte
-│   └── AllDayZone.svelte
-├── services/            # Business logic
-│   ├── VaultSync.ts
-│   └── TodoParser.ts
-├── stores/              # Svelte stores
-│   ├── todoStore.ts
-│   └── uiStore.ts
-├── utils/               # Utilities
-│   ├── colors.ts
-│   └── editorUtils.ts
-├── main.ts              # Plugin entry point
-└── styles.css           # Global styles
-```
+Requires Node.js v16+.
 
-## Technology Stack
-- **Framework**: Svelte 5 with runes
-- **Language**: TypeScript
-- **Build Tool**: esbuild
-- **API**: Obsidian Plugin API
+Built with Svelte 5 (runes), TypeScript, and esbuild.
+
+## Known issues / limitations
+
+- No recurring task support yet
+- Drag-and-drop can be finicky near the edges of the calendar grid on some screen sizes
+- Tag color assignments are stored in plugin settings, not in the vault — they won't sync between devices via iCloud Drive
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
+PRs welcome. If you find a bug, [open an issue](https://github.com/SamiBaayoun/Calendtask/issues) with a minimal reproduction if possible.
 
 ## Support
 
-If you encounter any issues or have feature requests, please [open an issue](https://github.com/SamiBaayoun/Calendtask/issues) on GitHub.
+If CalendTask is useful to you: [buymeacoffee.com/sb2a](https://buymeacoffee.com/sb2a)
 
----
+## License
 
-Made with ❤️ for the Obsidian community
+MIT

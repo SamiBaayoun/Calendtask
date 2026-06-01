@@ -24,6 +24,19 @@ function getCursorPositionAfterText(lineContent: string): number {
   return prefixLength + afterPrefix.trimEnd().length;
 }
 
+function positionCursorAtTodo(view: MarkdownView, todo: Todo): void {
+  if (todo.lineNumber === undefined) return;
+  const editor = view.editor;
+  const lineContent = editor.getLine(todo.lineNumber);
+  const cursorPos = getCursorPositionAfterText(lineContent);
+  editor.setCursor({ line: todo.lineNumber, ch: cursorPos });
+  editor.scrollIntoView(
+    { from: { line: todo.lineNumber, ch: cursorPos }, to: { line: todo.lineNumber, ch: cursorPos } },
+    true
+  );
+  editor.focus();
+}
+
 /**
  * Open a file in the editor and focus on a specific line
  */
@@ -38,31 +51,24 @@ export async function openTodoInEditor(app: App, todo: Todo): Promise<void> {
     return;
   }
 
-  // Open the file
+  // If the file is already open in a leaf, reveal it instead of reopening
+  const existingLeaf = app.workspace.getLeavesOfType('markdown').find(
+    l => (l.view as MarkdownView).file?.path === file.path
+  );
+
+  if (existingLeaf) {
+    app.workspace.revealLeaf(existingLeaf);
+    positionCursorAtTodo(existingLeaf.view as MarkdownView, todo);
+    return;
+  }
+
   const leaf = app.workspace.getLeaf(false);
   await leaf.openFile(file);
 
-  // Focus on the specific line if lineNumber is available
   if (todo.lineNumber !== undefined) {
     const view = app.workspace.getActiveViewOfType(MarkdownView);
     if (view) {
-      const editor = view.editor;
-
-      // Get cursor position at end of todo text
-      const lineContent = editor.getLine(todo.lineNumber);
-      const cursorPos = getCursorPositionAfterText(lineContent);
-
-      // Move cursor to the end of todo text
-      editor.setCursor({ line: todo.lineNumber, ch: cursorPos });
-
-      // Scroll to make the line visible
-      editor.scrollIntoView({
-        from: { line: todo.lineNumber, ch: cursorPos },
-        to: { line: todo.lineNumber, ch: cursorPos }
-      }, true);
-
-      // Focus the editor
-      editor.focus();
+      positionCursorAtTodo(view, todo);
     }
   }
 }

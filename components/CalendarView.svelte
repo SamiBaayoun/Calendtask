@@ -20,10 +20,13 @@
   import type { VaultSync } from '../services/VaultSync';
   import type CalendTaskPlugin from '../main';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { TODO_COLORS, getTodoHueFromTags } from '../utils/colors';
   import { CalendarTodoService } from '../services/CalendarTodoService';
   import { ICSParser } from '../services/ICSParser';
   import { Notice } from 'obsidian';
+  import { dragState, dropTarget, pendingDrop, type DragTask, type DropTarget } from '../stores/dragStore';
+
+  const HOUR_PX = 60;
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
@@ -42,10 +45,6 @@
   // Local state for visual resize feedback (not saved to store until mouseup)
   let resizeVisualState = $state<{ time?: string; duration?: number } | null>(null);
 
-  // Drag & drop states
-  let draggedOverCell = $state<{ dayIndex: number; hour: number } | null>(null);
-  let dropPreview = $state<{ dayIndex: number; hour: number; offsetY: number; todo: Todo } | null>(null);
-
   // Modal state
   let showCreateModal = $state(false);
   let modalDate = $state('');
@@ -56,6 +55,18 @@
   let currentTimePosition = $state(0);
   let todayDayIndex = $state(-1);
   let currentTimeString = $state('');
+
+  let weekLabel = $derived.by(() => {
+    const days = $daysInWeek;
+    if (!days || days.length === 0) return '';
+    const start = days[0];
+    const end = days[days.length - 1];
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return `${start.toLocaleDateString('en-US', { month: 'short' })} ${start.getDate()} – ${end.getDate()}`;
+    }
+    return `${fmt(start)} – ${fmt(end)}`;
+  });
 
   // Helper function to get the effective time for a todo (considers resize state)
   function getEffectiveTime(todo: Todo): string | undefined {
@@ -71,6 +82,7 @@
   let todosByDayHour = $derived.by(() => {
     const byHour = new Map<string, Todo[]>();
     const byDay = new Map<string, Todo[]>();
+    const byDateTimed = new Map<string, Todo[]>();
 
     $todos.forEach(todo => {
       if (!todo.date) return;
@@ -86,14 +98,17 @@
         return;
       }
 
-      // Timed todos - use effective time for indexing
-      const [hours] = effectiveTime.split(':').map(Number);
-      const key = `${todo.date}-${hours}`;
-      if (!byHour.has(key)) byHour.set(key, []);
-      byHour.get(key)!.push(todo);
+      // Timed todos - index by hour bucket and by date
+      const [h] = effectiveTime.split(':').map(Number);
+      const hourKey = `${todo.date}-${h}`;
+      if (!byHour.has(hourKey)) byHour.set(hourKey, []);
+      byHour.get(hourKey)!.push(todo);
+
+      if (!byDateTimed.has(todo.date)) byDateTimed.set(todo.date, []);
+      byDateTimed.get(todo.date)!.push(todo);
     });
 
-    return { byHour, byDay };
+    return { byHour, byDay, byDateTimed };
   });
 
   // Pre-compute day metadata to avoid repeated calculations (189 → 7 per render)
@@ -135,127 +150,68 @@
   }
 
   onMount(() => {
-    // Initialize current time position
     updateCurrentTime();
-
-    // Update every minute
     const timeInterval = setInterval(updateCurrentTime, 60000);
 
-    // Cleanup on unmount (mouseup listener is added/removed dynamically)
+    const unsubDrop = pendingDrop.subscribe(drop => {
+      if (drop) {
+        pendingDrop.set(null);
+        handleSchedule(drop.task, drop.target);
+      }
+    });
+
     return () => {
       clearInterval(timeInterval);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      unsubDrop();
     };
   });
 
+  async function handleSchedule(task: DragTask, target: DropTarget) {
+    const dayMeta = daysMetadata[target.day];
+    if (!dayMeta) return;
 
-  function handleDragOver(event: DragEvent, dayIndex: number, hour: number) {
-    event.preventDefault();
-    draggedOverCell = { dayIndex, hour };
+    const dateStr = formatDate(dayMeta.date);
+    const todo = $todos.find(t => t.id === task.id);
+    if (!todo) return;
 
-    // Essayer de récupérer le todo pour créer un preview
-    const data = event.dataTransfer?.getData('text/plain');
-    if (data) {
-      try {
-        const dragData = JSON.parse(data);
-        const todo = $todos.find(t => t.id === dragData.id);
-        if (todo) {
-          const offsetY = event.offsetY || 0;
-          dropPreview = { dayIndex, hour, offsetY, todo };
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-    }
-  }
-
-  function handleDragLeave() {
-    draggedOverCell = null;
-    dropPreview = null;
-  }
-
-  async function handleDrop(event: DragEvent, day: Date, hour: number) {
-    event.preventDefault();
-
-    // Nettoyer les états de drag
-    draggedOverCell = null;
-    dropPreview = null;
-
-    const data = event.dataTransfer?.getData('text/plain');
-    if (!data) return;
-
-    try {
-      const dragData = JSON.parse(data);
-      const todoId = dragData.id;
-
-      // Trouver le todo dans le store
-      const todo = $todos.find(t => t.id === todoId);
-      if (!todo) return;
-
-      // Toujours commencer au début de l'heure
-      const finalMinutes = 0;
-      const finalHour = hour;
-
-      // Vérifier que l'événement ne dépasse pas 23:59
-      const duration = todo.duration || 30;
-      const startMinutes = finalHour * 60 + finalMinutes;
-      const endMinutes = startMinutes + duration;
-
-      // Si l'événement dépasse minuit, annuler le drop
-      if (endMinutes > 1439) {
-        return;
-      }
-
-      // Format date et time
-      const dateStr = formatDate(day);
-      const timeStr = `${String(finalHour).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
-
-      // Check if it's a calendar-only todo
+    // Dépôt dans la zone all-day : supprimer heure et durée
+    if (target.isAllDay) {
       const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
-
       if (isCalendarOnly) {
-        // Update calendar-only todo in JSON
-        calendarOnlyTodos.update(currentTodos => {
-          return currentTodos.map(t =>
-            t.id === todo.id ? { ...t, date: dateStr, time: timeStr } : t
-          );
-        });
-
-        // Save to plugin data
-        await plugin.updateCalendarOnlyTodo(todo.id, {
-          date: dateStr,
-          time: timeStr
-        });
+        calendarOnlyTodos.update(ts => ts.map(t =>
+          t.id === todo.id ? { ...t, date: dateStr, time: undefined, duration: undefined } : t
+        ));
+        await plugin.updateCalendarOnlyTodo(todo.id, { date: dateStr, time: undefined, duration: undefined });
       } else {
-        // Update vault todo in file
-        await vaultSync.updateTodoInVault(todo, {
-          date: dateStr,
-          time: timeStr
-        });
+        await vaultSync.updateTodoInVault(todo, { date: dateStr, time: undefined, duration: undefined });
       }
+      return;
+    }
 
-    } catch (error) {
-      // Error handling drop
+    const h = Math.floor(target.start);
+    const m = Math.round((target.start - h) * 60);
+    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+    const duration = todo.duration || 60;
+    if (h * 60 + m + duration > 1439) return;
+
+    const isCalendarOnly = CalendarTodoService.isCalendarOnly(todo);
+    if (isCalendarOnly) {
+      calendarOnlyTodos.update(todos => todos.map(t =>
+        t.id === todo.id ? { ...t, date: dateStr, time: timeStr } : t
+      ));
+      await plugin.updateCalendarOnlyTodo(todo.id, { date: dateStr, time: timeStr });
+    } else {
+      await vaultSync.updateTodoInVault(todo, { date: dateStr, time: timeStr });
     }
   }
 
-  // Calculer la position du preview pendant le drag
-  function getPreviewPosition(preview: typeof dropPreview): { top: number; height: number; time: string } | null {
-    if (!preview) return null;
-
-    // Toujours commencer au début de l'heure
-    const cellHeight = 60;
-    const finalMinutes = 0;
-    const finalHour = preview.hour;
-
-    const top = 0; // Toujours au début de la cellule
-    const duration = preview.todo.duration || 30;
-    const height = (duration / 60) * cellHeight;
-
-    const timeStr = `${String(finalHour).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
-
-    return { top, height, time: timeStr };
+  function fmtDropTime(h: number): string {
+    const hr = Math.floor(h);
+    const m = Math.round((h - hr) * 60);
+    return `${String(hr).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
   function handleMouseDown(event: MouseEvent, todo: Todo, type: 'top' | 'bottom') {
@@ -403,61 +359,6 @@
     await vaultSync.updateTodoInVault(todo, {
       status: newStatus
     });
-  }
-
-  function handleEventDragStart(event: DragEvent, todo: Todo) {
-    // Ne pas permettre le drag si on est en train de resize
-    if (isResizing) {
-      event.preventDefault();
-      return;
-    }
-
-    if (event.dataTransfer) {
-      event.dataTransfer.setData('text/plain', JSON.stringify({
-        id: todo.id,
-        text: todo.text,
-        isCalendarEvent: true
-      }));
-      event.dataTransfer.effectAllowed = 'move';
-
-      // Créer une image fantôme pour les événements du calendrier
-      const target = event.currentTarget as HTMLElement;
-      const ghost = target.cloneNode(true) as HTMLElement;
-
-      // Calculer la largeur d'une cellule du calendrier
-      // La grille calendrier = (largeur totale - 60px colonne temps) / 7 jours
-      const calendarView = document.querySelector('.calendtask-calendar-view');
-      let calendarCellWidth = 280; // Fallback
-      if (calendarView) {
-        const viewWidth = calendarView.clientWidth;
-        calendarCellWidth = (viewWidth - 60) / 7; // 60px = largeur colonne temps
-      }
-
-      // Positionner hors écran mais visible pour le rendu
-      ghost.style.position = 'fixed';
-      ghost.style.top = '-9999px';
-      ghost.style.left = '-9999px';
-      ghost.style.width = `${calendarCellWidth}px`;
-      ghost.style.maxWidth = `${calendarCellWidth}px`;
-      ghost.style.height = 'auto';
-      ghost.style.opacity = '0.85';
-      ghost.style.pointerEvents = 'none';
-      ghost.style.zIndex = '10000';
-      ghost.style.transform = 'none';
-      ghost.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
-
-      document.body.appendChild(ghost);
-
-      // Utiliser l'élément comme drag image
-      event.dataTransfer.setDragImage(ghost, 20, 20);
-
-      // Nettoyer après un court délai
-      setTimeout(() => {
-        if (ghost.parentNode) {
-          document.body.removeChild(ghost);
-        }
-      }, 50);
-    }
   }
 
   async function handleEventContextMenu(event: MouseEvent, todo: Todo) {
@@ -691,14 +592,11 @@
 
   // Fast lookup functions - take maps as parameter to ensure Svelte reactivity
   function getAllDayTodosForDay(day: Date, maps: typeof todosByDayHour): Todo[] {
-    const dateStr = formatDate(day);
-    return maps.byDay.get(dateStr) || [];
+    return maps.byDay.get(formatDate(day)) || [];
   }
 
-  function getTodosForHour(day: Date, hour: number, maps: typeof todosByDayHour): Todo[] {
-    const dateStr = formatDate(day);
-    const key = `${dateStr}-${hour}`;
-    return maps.byHour.get(key) || [];
+  function getTodosForDayTimed(day: Date, maps: typeof todosByDayHour): Todo[] {
+    return maps.byDateTimed.get(formatDate(day)) || [];
   }
 
   function formatDate(date: Date): string {
@@ -853,12 +751,11 @@
       const duration = resizeVisualState.duration ?? todo.duration ?? 30;
       const height = (duration / 60) * 60;
 
-      // Use time from visual state if available (for top handle resize)
       const time = resizeVisualState.time || todo.time;
       if (!time) return { top: 0, height, ...overlap };
 
-      const [hours, minutes] = time.split(':').map(Number);
-      const top = (minutes / 60) * 60;
+      const [h, m] = time.split(':').map(Number);
+      const top = h * 60 + m;
 
       return { top, height, ...overlap };
     }
@@ -866,8 +763,8 @@
     // Normal rendering
     if (!todo.time) return { top: 0, height: 60, ...overlap };
 
-    const [hours, minutes] = todo.time.split(':').map(Number);
-    const top = (minutes / 60) * 60;
+    const [h, m] = todo.time.split(':').map(Number);
+    const top = h * 60 + m;
     const duration = todo.duration || 30;
     const height = (duration / 60) * 60;
 
@@ -877,48 +774,67 @@
 
 <div class="calendar-container">
   <div class="calendar-header">
-    <div>
-      <div class="calendar-navigation">
-        <button on:click={goToPreviousWeek} class="nav-button">&lt;</button>
-        <button on:click={goToToday} class="nav-button">Today</button>
-        <button on:click={goToNextWeek} class="nav-button">&gt;</button>
-      </div>
-      <h2 class="current-week-display">
-        {$currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-      </h2>
-    </div>
-    <div class="calendar-actions">
-      <div class="calendar-view-selector">
-        <button
-          on:click={() => setCalendarView('day')}
-          class="view-button"
-          class:active={$calendarView === 'day'}
-        >
-          Day
-        </button>
-        <button
-          on:click={() => setCalendarView('threeDays')}
-          class="view-button"
-          class:active={$calendarView === 'threeDays'}
-        >
-          3 Days
-        </button>
-        <button
-          on:click={() => setCalendarView('week')}
-          class="view-button"
-          class:active={$calendarView === 'week'}
-        >
-          Week
-        </button>
-      </div>
-      <button on:click={handleICSImport} class="import-ics-button" title="Import ICS calendar">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
+    <div class="nav-group">
+      <div class="nav-button icon-only" role="button" tabindex="0" aria-label="Semaine précédente"
+        on:click={goToPreviousWeek}
+        on:keydown={(e) => e.key === 'Enter' && goToPreviousWeek()}>
+        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
+          <path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Import ICS
-      </button>
+      </div>
+      <div class="nav-button" role="button" tabindex="0"
+        on:click={goToToday}
+        on:keydown={(e) => e.key === 'Enter' && goToToday()}>Today</div>
+      <div class="nav-button icon-only" role="button" tabindex="0" aria-label="Semaine suivante"
+        on:click={goToNextWeek}
+        on:keydown={(e) => e.key === 'Enter' && goToNextWeek()}>
+        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
+          <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="week-label">{weekLabel}</div>
+
+    <div class="cal-head-spacer"></div>
+
+    <div class="view-selector" role="tablist">
+      <div
+        class="view-button"
+        class:active={$calendarView === 'day'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'day'}
+        on:click={() => setCalendarView('day')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('day')}
+      >Day</div>
+      <div
+        class="view-button"
+        class:active={$calendarView === 'threeDays'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'threeDays'}
+        on:click={() => setCalendarView('threeDays')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('threeDays')}
+      >3 Days</div>
+      <div
+        class="view-button"
+        class:active={$calendarView === 'week'}
+        role="tab"
+        tabindex="0"
+        aria-selected={$calendarView === 'week'}
+        on:click={() => setCalendarView('week')}
+        on:keydown={(e) => e.key === 'Enter' && setCalendarView('week')}
+      >Week</div>
+    </div>
+
+    <div class="import-ics-button" role="button" tabindex="0" title="Import ICS calendar"
+      on:click={handleICSImport}
+      on:keydown={(e) => e.key === 'Enter' && handleICSImport()}>
+      <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+        <path d="M8 11V4M5 6.5L8 3.5l3 3M3.5 12.5h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Import ICS
     </div>
   </div>
 
@@ -936,8 +852,8 @@
 
       <!-- Zone All-Day -->
       <div class="time-column-all-day">Toute la journée</div>
-      {#each daysMetadata as dayMeta (dayMeta.timestamp)}
-        <AllDayZone day={dayMeta.date} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
+      {#each daysMetadata as dayMeta, i (dayMeta.timestamp)}
+        <AllDayZone day={dayMeta.date} dayIndex={i} todos={getAllDayTodosForDay(dayMeta.date, todosByDayHour)} hideLabel={true} />
       {/each}
     </div>
 
@@ -946,71 +862,73 @@
       <!-- Current time indicator (only show if today is in the current week) -->
       {#if todayDayIndex >= 0}
         <div class="current-time-wrapper" class:view-day={$calendarView === 'day'} class:view-threeDays={$calendarView === 'threeDays'} class:view-week={$calendarView === 'week'} style="top: {currentTimePosition}px;">
-          <!-- Ligne fine qui traverse toute la semaine -->
           <div class="time-line-full">
             <span class="current-time-label">{currentTimeString}</span>
           </div>
-          <!-- Ligne épaisse uniquement sur today -->
           <div class="time-line-today" style="grid-column: {todayDayIndex + 2};"></div>
         </div>
       {/if}
 
-      <!-- Grille horaire -->
-      {#each hours as hour}
-        <div class="time-cell">{hour}:00</div>
-        {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
-          <div
-            class="event-cell"
-            class:today={dayMeta.isToday}
-            class:drag-over={draggedOverCell?.dayIndex === dayIndex && draggedOverCell?.hour === hour}
-            on:dragover={(e) => handleDragOver(e, dayIndex, hour)}
-            on:dragleave={handleDragLeave}
-            on:drop={(e) => handleDrop(e, dayMeta.date, hour)}
-            on:contextmenu={(e) => handleCellContextMenu(e, dayMeta.date, hour)}
-            role="gridcell"
-            tabindex="0"
-          >
-            {#each getTodosForHour(dayMeta.date, hour, todosByDayHour) as todo (todo.id)}
-              {@const dateStr = formatDate(dayMeta.date)}
-              {@const position = getEventPosition(todo, dateStr)}
-              {@const colors = getTodoColorFromTags(todo, $tagColors)}
-              <TodoItem
-                {todo}
-                variant="calendar"
-                {colors}
-                {position}
-                showOpenArrow={true}
-                showResizeHandles={true}
-                onToggleStatus={handleToggleStatus}
-                onDoubleClick={handleEventDoubleClick}
-                onDragStart={handleEventDragStart}
-                onContextMenu={handleEventContextMenu}
-                onResizeMouseDown={handleMouseDown}
-              />
-            {/each}
-
-            <!-- Preview du drop pendant le drag -->
-            {#if dropPreview && dropPreview.dayIndex === dayIndex && dropPreview.hour === hour}
-              {@const previewPos = getPreviewPosition(dropPreview)}
-              {#if previewPos}
-                {@const colors = getTodoColorFromTags(dropPreview.todo, $tagColors)}
-                <div
-                  class="drop-preview"
-                  style="top: {previewPos.top}px; height: {previewPos.height}px; background-color: {colors.bg}; color: {colors.text};"
-                >
-                  <div class="preview-content">
-                    <span class="preview-text">{dropPreview.todo.text}</span>
-                    <span class="preview-time">{previewPos.time}</span>
-                  </div>
-                </div>
-              {/if}
-            {/if}
-          </div>
+      <!-- Axe horaire -->
+      <div class="time-axis">
+        {#each hours as hour}
+          <div class="time-cell">{hour}:00</div>
         {/each}
+      </div>
+
+      <!-- Colonnes de jours -->
+      {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
+        <div class="day-col" class:today={dayMeta.isToday} data-day={dayIndex}>
+          <!-- Cellules de fond pour le quadrillage et le context menu -->
+          {#each hours as hour}
+            <div
+              class="event-cell"
+              class:today={dayMeta.isToday}
+              on:contextmenu={(e) => handleCellContextMenu(e, dayMeta.date, hour)}
+              role="gridcell"
+              tabindex="0"
+            ></div>
+          {/each}
+
+          <!-- Événements positionnés absolument dans la colonne -->
+          {#each getTodosForDayTimed(dayMeta.date, todosByDayHour) as todo (todo.id)}
+            {@const dateStr = formatDate(dayMeta.date)}
+            {@const position = getEventPosition(todo, dateStr)}
+            {@const hue = getTodoHueFromTags(todo, $tagColors)}
+            <TodoItem
+              {todo}
+              variant="calendar"
+              {hue}
+              {position}
+              showOpenArrow={true}
+              showResizeHandles={true}
+              onToggleStatus={handleToggleStatus}
+              onDoubleClick={handleEventDoubleClick}
+              onContextMenu={handleEventContextMenu}
+              onResizeMouseDown={handleMouseDown}
+            />
+          {/each}
+
+          <!-- Aperçu de dépôt -->
+          {#if $dragState.active && !isResizing && $dropTarget && $dropTarget.day === dayIndex}
+            {@const previewTop = $dropTarget.start * HOUR_PX}
+            {@const previewHeight = ($dragState.task?.durationMinutes ?? 60) / 60 * HOUR_PX}
+            <div
+              class="drop-preview"
+              style="top: {previewTop}px; height: {previewHeight}px;"
+            >
+              <div class="preview-content">
+                <span class="preview-time">{fmtDropTime($dropTarget.start)}</span>
+                <span class="preview-text">{$dropTarget.text}</span>
+              </div>
+            </div>
+          {/if}
+        </div>
       {/each}
     </div>
   </div>
 </div>
+
 
 <!-- Create Todo Modal -->
 {#if showCreateModal}
@@ -1040,6 +958,8 @@
     grid-template-rows: auto auto;
     gap: 0;
     background-color: var(--background-secondary);
+    overflow: hidden;
+    scrollbar-gutter: stable;
   }
 
   .calendar-grid-header.view-day {
@@ -1054,9 +974,9 @@
     flex-grow: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
     display: grid;
     grid-template-columns: 60px repeat(7, 1fr);
-    grid-auto-rows: minmax(60px, auto);
     gap: 0;
     position: relative;
     contain: layout style paint;
@@ -1068,6 +988,18 @@
 
   .calendar-grid-body.view-threeDays {
     grid-template-columns: 60px repeat(3, 1fr);
+  }
+
+  .time-axis {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-secondary);
+  }
+
+  .day-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Current time indicator */
@@ -1095,7 +1027,7 @@
     grid-column: 2 / 9; /* Du début de Monday (col 2) à la fin de Sunday (col 9) */
     grid-row: 1;
     height: 2px;
-    background-color: rgba(255, 0, 0, 0.6);
+    background-color: color-mix(in srgb, var(--ct-now, var(--color-red, #e05561)) 60%, transparent);
     position: relative;
   }
 
@@ -1112,7 +1044,7 @@
     left: -50px;
     top: 50%;
     transform: translateY(-50%);
-    background-color: rgba(255, 0, 0, 0.9);
+    background-color: var(--ct-now, var(--color-red, #e05561));
     color: white;
     font-size: 11px;
     font-weight: 600;
@@ -1125,8 +1057,8 @@
   .time-line-today {
     grid-row: 1;
     height: 2px;
-    background-color: rgba(255, 0, 0, 0.9);
-    box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
+    background-color: var(--ct-now, var(--color-red, #e05561));
+    box-shadow: 0 0 6px color-mix(in srgb, var(--ct-now, var(--color-red, #e05561)) 55%, transparent);
     position: relative;
   }
 
@@ -1138,8 +1070,8 @@
     transform: translateY(-50%);
     width: 8px;
     height: 8px;
-    background-color: rgba(255, 0, 0, 0.9);
+    background-color: var(--ct-now, var(--color-red, #e05561));
     border-radius: 50%;
-    box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--ct-now, var(--color-red, #e05561)) 55%, transparent);
   }
 </style>

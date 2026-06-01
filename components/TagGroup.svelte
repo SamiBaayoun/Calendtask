@@ -7,7 +7,7 @@
   import type CalendTaskPlugin from '../main';
   import { collapsedTags, toggleTagCollapsed, tagColors, setTagColor } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { TODO_COLORS, getTodoColorFromTags } from '../utils/colors';
+  import { TODO_COLORS, getTodoHueFromTags } from '../utils/colors';
   import { activeTimer } from '../stores/timerStore';
 
   export let group: TagGroupType;
@@ -22,6 +22,11 @@
   $: visibleTodos = (hideCompletedTodos
     ? group.todos.filter(todo => todo.status !== 'done')
     : group.todos).sort((a, b) => a.text.localeCompare(b.text, undefined, { sensitivity: 'base' }));
+
+  $: groupHue = (() => {
+    const color = $tagColors.get(group.tag);
+    return color ? (TODO_COLORS[color]?.hue ?? 275) : 275;
+  })();
 
   // S'abonner aux tags collapsed
   collapsedTags.subscribe(tags => {
@@ -129,49 +134,6 @@
     menu.showAtMouseEvent(event);
   }
 
-  function handleDragStart(event: DragEvent, todo: Todo) {
-    if (event.dataTransfer) {
-      event.dataTransfer.setData('text/plain', JSON.stringify({ id: todo.id, text: todo.text }));
-
-      // Cloner l'élément actuel pour l'image fantôme
-      const target = event.currentTarget as HTMLElement;
-      const ghost = target.cloneNode(true) as HTMLElement;
-
-      // Calculer la largeur d'une cellule du calendrier
-      // La grille calendrier = (largeur totale - 60px colonne temps) / 7 jours
-      const calendarView = document.querySelector('.calendtask-calendar-view');
-      let calendarCellWidth = 280; // Fallback
-      if (calendarView) {
-        const viewWidth = calendarView.clientWidth;
-        calendarCellWidth = (viewWidth - 60) / 7; // 60px = largeur colonne temps
-      }
-
-      // Positionner hors écran mais visible pour le rendu
-      ghost.style.position = 'fixed';
-      ghost.style.top = '-9999px';
-      ghost.style.left = '-9999px';
-      ghost.style.width = `${calendarCellWidth}px`;
-      ghost.style.maxWidth = `${calendarCellWidth}px`;
-      ghost.style.opacity = '0.85';
-      ghost.style.pointerEvents = 'none';
-      ghost.style.zIndex = '10000';
-      ghost.style.transform = 'none';
-      ghost.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
-
-      document.body.appendChild(ghost);
-
-      // Utiliser l'élément comme drag image
-      event.dataTransfer.setDragImage(ghost, 20, 20);
-
-      // Nettoyer après un court délai
-      setTimeout(() => {
-        if (ghost.parentNode) {
-          document.body.removeChild(ghost);
-        }
-      }, 50);
-    }
-  }
-
   function getPriorityClass(priority?: string): string {
     switch (priority) {
       case 'critical': return 'priority-critical';
@@ -197,7 +159,12 @@
 
 <div class="tag-group">
   <div class="tag-header" on:click={handleToggle} role="button" tabindex="0">
-    <span class="tag-toggle">{isCollapsed ? '▶' : '▼'}</span>
+    <span class="tag-toggle" class:expanded={!isCollapsed}>
+      <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+        <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="tag-dot" style="--dot-hue: {groupHue}"></span>
     <span class="tag-name">
       {#if group.tag}
         {group.tag}
@@ -205,24 +172,23 @@
         No tag
       {/if}
     </span>
-    <span class="tag-count">({visibleTodos.length})</span>
+    <span class="tag-count">{visibleTodos.length}</span>
   </div>
 
   {#if !isCollapsed}
     <div class="tag-todos">
       {#each visibleTodos as todo (todo.id)}
-        {@const colors = getTodoColorFromTags(todo, $tagColors)}
+        {@const hue = getTodoHueFromTags(todo, $tagColors)}
         <TodoItem
           {todo}
           variant="sidebar"
-          {colors}
+          {hue}
           priorityClass={getPriorityClass(todo.priority)}
           showPriority={!!todo.priority}
           showMeta={true}
           showOpenArrow={true}
           onToggleStatus={handleToggleStatus}
           onDoubleClick={handleDoubleClick}
-          onDragStart={handleDragStart}
           onContextMenu={handleContextMenu}
         />
       {/each}
@@ -232,18 +198,20 @@
 
 <style>
   .tag-group {
-    margin-bottom: 12px;
+    padding-top: 8px;
+    margin-top: 4px;
   }
 
   .tag-header {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 7px 8px;
     background-color: transparent;
     border-radius: 6px;
     cursor: pointer;
     user-select: none;
-    transition: all 0.15s ease;
+    transition: background .12s;
   }
 
   .tag-header:hover {
@@ -251,32 +219,51 @@
   }
 
   .tag-toggle {
-    margin-right: 10px;
-    font-size: 0.75em;
-    color: var(--text-muted);
-    transition: transform 0.15s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    color: var(--text-faint);
+    transition: transform .2s ease;
+  }
+
+  .tag-toggle.expanded {
+    transform: rotate(90deg);
+  }
+
+  .tag-dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: oklch(62% 0.15 var(--dot-hue));
   }
 
   .tag-name {
     flex-grow: 1;
     font-weight: 600;
-    font-size: 0.9em;
+    font-size: var(--ct-fs-ui, 0.875em);
+    color: var(--text-normal);
+  }
+
+  .tag-name::before {
+    content: '#';
+    color: var(--text-muted);
   }
 
   .tag-count {
+    margin-left: auto;
     color: var(--text-muted);
-    font-size: 0.85em;
+    font-size: var(--ct-fs-badge, 0.72em);
     font-weight: 500;
-    background-color: var(--background-modifier-border);
-    padding: 2px 8px;
-    border-radius: 12px;
+    font-variant-numeric: tabular-nums;
   }
 
   .tag-todos {
-    margin-top: 8px;
-    padding-left: 8px;
+    margin-top: 4px;
+    padding-left: 6px;
+    padding-bottom: 4px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
   }
 </style>

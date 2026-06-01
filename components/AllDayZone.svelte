@@ -7,11 +7,15 @@
   import { todos as todosStore } from '../stores/todoStore';
   import { tagColors } from '../stores/uiStore';
   import { openTodoInEditor } from '../utils/editorUtils';
-  import { getTodoColorFromTags } from '../utils/colors';
+  import { getTodoHueFromTags } from '../utils/colors';
+  import { dropTarget } from '../stores/dragStore';
 
   export let day: Date;
+  export let dayIndex: number = -1;
   export let todos: Todo[];
   export let hideLabel: boolean = false;
+
+  $: isDragTarget = $dropTarget?.isAllDay === true && $dropTarget?.day === dayIndex;
 
   const app = getContext<App>('app');
   const vaultSync = getContext<VaultSync>('vaultSync');
@@ -154,6 +158,7 @@
 
 <div
   class="all-day-zone"
+  class:drag-over={isDragTarget}
   on:dragover={handleDragOver}
   on:drop={handleDrop}
   role="region"
@@ -163,11 +168,11 @@
     <div class="all-day-placeholder">All day</div>
   {:else}
     {#each todos as todo (todo.id)}
-      {@const colors = getTodoColorFromTags(todo, $tagColors)}
+      {@const hue = getTodoHueFromTags(todo, $tagColors)}
       <TodoItem
         {todo}
         variant="allday"
-        {colors}
+        {hue}
         showOpenArrow={true}
         onToggleStatus={handleToggleStatus}
         onDoubleClick={handleEventDoubleClick}
@@ -180,20 +185,26 @@
 
 <style>
   .all-day-zone {
-    min-height: 40px;
+    min-height: 38px;
     padding: 4px;
     background-color: var(--background-primary);
     border-bottom: 1px solid var(--background-modifier-border);
+    border-left: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
+  }
+
+  .all-day-zone.drag-over {
+    background-color: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+    outline: 1px dashed var(--interactive-accent);
+    outline-offset: -1px;
   }
 
   .all-day-placeholder {
     color: var(--text-faint);
-    font-size: 0.75em;
-    text-align: center;
-    padding: 8px;
+    font-size: 0.72em;
+    padding: 4px 6px;
     font-style: italic;
   }
 </style>

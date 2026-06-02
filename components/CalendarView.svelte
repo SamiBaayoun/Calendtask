@@ -325,15 +325,18 @@
         const isCalendarOnly = CalendarTodoService.isCalendarOnly(resizeTodo);
 
         if (isCalendarOnly) {
-          // Update calendar-only todo in JSON
-          calendarOnlyTodos.update(currentTodos => {
-            return currentTodos.map(t =>
-              t.id === resizeTodo.id ? { ...t, ...updates } : t
-            );
-          });
-
-          // Save to plugin data
-          await plugin.updateCalendarOnlyTodo(resizeTodo.id, updates);
+          const capturedId = resizeTodo.id;
+          const capturedTime = initialTime;
+          // Always include the original time to override any stale state set by an accidental drag
+          const persistUpdates = capturedTime != null
+            ? { time: capturedTime, ...updates }
+            : updates;
+          calendarOnlyTodos.update(currentTodos =>
+            currentTodos.map(t =>
+              t.id === capturedId ? { ...t, ...persistUpdates } : t
+            )
+          );
+          await plugin.updateCalendarOnlyTodo(capturedId, persistUpdates);
         } else {
           // Save vault todo to file (VaultSync will handle the store update)
           await vaultSync.updateTodoInVault(resizeTodo, updates);

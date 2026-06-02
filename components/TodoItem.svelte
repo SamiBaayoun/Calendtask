@@ -141,7 +141,7 @@
     const y = e.clientY - rect.top;
     const height = rect.height;
 
-    const resizeZone = 10;
+    const resizeZone = Math.min(14, Math.floor(height / 3));
 
     if (y <= resizeZone) {
       // Top resize
@@ -502,6 +502,10 @@
   }
 
   .all-day-event:hover .open-file-arrow {
+    opacity: 1;
+  }
+
+  .calendar-event:hover .open-file-arrow {
     opacity: 1;
   }
 

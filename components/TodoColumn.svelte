@@ -100,9 +100,8 @@
 
 <style>
   .todo-column {
-    width: 250px;
+    width: 100%;
     padding: 0;
-    border-right: 1px solid var(--background-modifier-border);
     background-color: var(--background-secondary);
     overflow-y: auto;
     display: flex;

@@ -111,6 +111,15 @@
     return { byHour, byDay, byDateTimed };
   });
 
+  // Pre-compute overlap layout once per day (avoids O(n²) × todos recalculs)
+  let dayOverlapLayouts = $derived.by(() => {
+    const layouts = new Map<string, Map<string, { column: number; totalColumns: number }>>();
+    for (const [dateStr, dayTodos] of todosByDayHour.byDateTimed) {
+      layouts.set(dateStr, calculateOverlapColumns(dayTodos));
+    }
+    return layouts;
+  });
+
   // Pre-compute day metadata to avoid repeated calculations (189 → 7 per render)
   let daysMetadata = $derived($daysInWeek.map(day => {
     const today = new Date();
@@ -721,30 +730,8 @@
     return layout;
   }
 
-  /**
-   * Calculate overlap layout for a specific day (lazy evaluation)
-   * Only called when rendering that day's events
-   */
-  function calculateDayOverlap(dateStr: string, allTodos: Todo[]): Map<string, { column: number; totalColumns: number }> {
-    // Get all timed todos for this day
-    const dayTodos: Todo[] = [];
-
-    allTodos.forEach(todo => {
-      if (todo.date !== dateStr) return;
-
-      const effectiveTime = getEffectiveTime(todo);
-      if (!effectiveTime) return; // Skip all-day events
-
-      dayTodos.push(todo);
-    });
-
-    return calculateOverlapColumns(dayTodos);
-  }
-
   function getEventPosition(todo: Todo, dateStr: string): { top: number; height: number; column: number; totalColumns: number } {
-    // Calculate overlap layout for this day (lazy evaluation)
-    const dayLayout = calculateDayOverlap(dateStr, $todos);
-    const overlap = dayLayout.get(todo.id) || { column: 0, totalColumns: 1 };
+    const overlap = dayOverlapLayouts.get(dateStr)?.get(todo.id) ?? { column: 0, totalColumns: 1 };
 
     // Use visual state if this event is being resized
     if (isResizing && resizeEventId === todo.id && resizeVisualState) {
@@ -878,17 +865,13 @@
 
       <!-- Colonnes de jours -->
       {#each daysMetadata as dayMeta, dayIndex (dayMeta.timestamp)}
-        <div class="day-col" class:today={dayMeta.isToday} data-day={dayIndex}>
-          <!-- Cellules de fond pour le quadrillage et le context menu -->
-          {#each hours as hour}
-            <div
-              class="event-cell"
-              class:today={dayMeta.isToday}
-              on:contextmenu={(e) => handleCellContextMenu(e, dayMeta.date, hour)}
-              role="gridcell"
-              tabindex="0"
-            ></div>
-          {/each}
+        <div class="day-col" class:today={dayMeta.isToday} data-day={dayIndex}
+          on:contextmenu={(e) => {
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const hour = Math.min(23, Math.max(0, Math.floor((e.clientY - rect.top) / HOUR_PX)));
+            handleCellContextMenu(e, dayMeta.date, hour);
+          }}
+        >
 
           <!-- Événements positionnés absolument dans la colonne -->
           {#each getTodosForDayTimed(dayMeta.date, todosByDayHour) as todo (todo.id)}
@@ -960,6 +943,7 @@
     background-color: var(--background-secondary);
     overflow: hidden;
     scrollbar-gutter: stable;
+    contain: layout style;
   }
 
   .calendar-grid-header.view-day {
@@ -998,8 +982,19 @@
 
   .day-col {
     position: relative;
-    display: flex;
-    flex-direction: column;
+    height: 1440px; /* 24 * HOUR_PX — remplace le flex des event-cells */
+    border-left: 1px solid var(--background-modifier-border);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent calc(60px - 1px),
+      color-mix(in srgb, var(--background-modifier-border) 65%, transparent) calc(60px - 1px),
+      color-mix(in srgb, var(--background-modifier-border) 65%, transparent) 60px
+    );
+  }
+
+  .day-col.today {
+    background-color: color-mix(in srgb, var(--interactive-accent) 4%, transparent);
   }
 
   /* Current time indicator */

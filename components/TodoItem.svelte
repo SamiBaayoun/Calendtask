@@ -302,12 +302,9 @@
   /* ─── All-day event ──────────────────────────────────────── */
   .all-day-event {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
     font-size: 0.78em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     border-radius: 4px;
     padding: 3px 8px;
     background-color: var(--ev-bg);
@@ -340,7 +337,8 @@
 
   .all-day-event .item-content {
     flex: 1;
-    overflow: hidden;
+    min-width: 0;
+    align-items: flex-start;
   }
 
   .todo-item .item-content {
@@ -419,7 +417,9 @@
   }
 
   .all-day-event .item-text {
-    white-space: nowrap;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .todo-item .item-text {

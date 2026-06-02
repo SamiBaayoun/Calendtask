@@ -4,6 +4,8 @@ An Obsidian plugin that adds a weekly calendar view to your vault. You can drag 
 
 I built this because I wanted to see my tasks in a calendar without leaving Obsidian or syncing with an external service.
 
+![CalendTask screenshot](assets/screenshot.png)
+
 ## What it does
 
 The main view is a weekly grid with an "All-day" zone at the top and hourly slots below. Tasks without a scheduled time sit in a sidebar on the left, and you drag them onto the calendar when you're ready to place them.

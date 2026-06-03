@@ -1,6 +1,6 @@
 {
 	"name": "calendtask",
-	"version": "2.0.3",
+	"version": "2.0.4",
 	"description": "A powerful task management plugin with a visual weekly calendar for Obsidian",
 	"main": "main.js",
 	"scripts": {

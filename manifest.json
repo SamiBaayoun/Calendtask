@@ -1,7 +1,7 @@
 {
 	"id": "calendtask",
 	"name": "CalendTask",
-	"version": "2.0.3",
+	"version": "2.0.4",
 	"minAppVersion": "0.15.0",
 	"description": "A task management plugin with a visual weekly calendar.",
 	"author": "SamiBaayoun",

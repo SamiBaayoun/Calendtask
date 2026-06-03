@@ -51,7 +51,7 @@ export class CalendTaskView extends ItemView {
 
     // Load calendar-only todos from plugin data
     const savedCalendarOnlyTodos = this.plugin.getCalendarOnlyTodos();
-    calendarOnlyTodos.set(savedCalendarOnlyTodos);
+    calendarOnlyTodos.set([...savedCalendarOnlyTodos]);
 
     // Load tag colors from plugin data
     const savedTagColors = this.plugin.getTagColors();

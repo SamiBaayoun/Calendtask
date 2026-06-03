@@ -31,7 +31,7 @@
     await plugin.addCalendarOnlyTodo(newTodo);
 
     // Update the store
-    calendarOnlyTodos.update(todos => [...todos, newTodo]);
+    calendarOnlyTodos.set([...plugin.getCalendarOnlyTodos()]);
 
     onClose();
   }

@@ -91,6 +91,8 @@
                            variant === 'allday' ? 'all-day-event' :
                            'todo-item');
 
+  let isShortEvent = $derived(variant === 'calendar' && position !== undefined && position.height <= 30);
+
   // Compute style — colours are passed as CSS custom properties so the
   // stylesheet decides where to apply them (calendar/allday only, not sidebar).
   let itemStyle = $derived(variant === 'calendar' && position
@@ -162,6 +164,7 @@
   class="{itemClass} {priorityClass}"
   class:completed={todo.status === 'done'}
   class:has-active-timer={hasTimer}
+  class:short-event={isShortEvent}
   style="{itemStyle} cursor: {currentCursor};"
   use:dragToCalendar={dragTask}
   on:contextmenu={(e) => onContextMenu?.(e, todo)}
@@ -276,6 +279,26 @@
     box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .25),
                 inset 0 0 0 1px rgba(0, 0, 0, .1);
     z-index: 3;
+  }
+
+  .calendar-event.short-event {
+    padding: 2px 5px;
+    font-size: 0.68em;
+  }
+
+  .calendar-event.short-event .item-content {
+    gap: 3px;
+  }
+
+  .calendar-event.short-event .item-text {
+    -webkit-line-clamp: 2;
+    line-height: 1.2;
+  }
+
+  .calendar-event.short-event .item-checkbox {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
   }
 
   .calendar-event:active {
